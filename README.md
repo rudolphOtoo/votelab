@@ -56,12 +56,53 @@ composer check        # all of the above
 
 ## Operations
 
-- **Queue worker required.** Webhooks are acknowledged immediately and processed on the queue
-  (`php artisan queue:work`).
-- **Cache and locks.** Payment fulfilment uses atomic cache locks. In production use Redis
-  (`CACHE_STORE=redis`, `REDIS_CLIENT=predis`, or `phpredis` if the extension is installed) with
-  AOF persistence enabled and `maxmemory-policy noeviction`, so lock keys are never evicted.
-- **Close grace window.** `VOTING_CLOSE_GRACE_MINUTES` (default 5) is how long a closed category still
+### Paystack
+
+- **Webhook URL:** set the Paystack dashboard webhook to `https://<host>/api/webhooks/paystack`.
+  PayZephyr's built-in `/payments/webhook/{provider}` route is deliberately disabled (it returns 404).
+- **Settlement:** paid votes settle 100% to the organization's Paystack subaccount
+  (`organizations.paystack_subaccount_code`). The subaccount bears Paystack's fee, which the voter pays on
+  top of the vote price. Organizations without a subaccount cannot take paid votes.
+
+### Queue worker (required)
+
+Webhooks are acknowledged immediately and verified on the queue, so payments are only credited while a
+worker is running. In production, keep one alive with Supervisor (or Laravel Horizon if you use Redis queues):
+
+```ini
+[program:votelab-worker]
+command=php /var/www/votelab/artisan queue:work --sleep=3 --tries=1 --max-time=3600
+autostart=true
+autorestart=true
+stopwaitsecs=90
+numprocs=2
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/votelab/storage/logs/worker.log
+```
+
+`FulfillPaidVoteOrderJob` sets its own `tries` (8), `backoff` (10 s up to 30 min) and `timeout` (60 s), and
+logs `fulfilment.gave_up` to the `payments` log when it runs out of attempts. Alert on failed jobs
+(`php artisan queue:failed`).
+
+### Scheduler (required)
+
+`payments:reconcile-pending` runs every five minutes. It re-verifies pending payments older than
+10 minutes, credits any whose webhook never arrived, and expires checkouts still unpaid after 24 hours.
+Add the Laravel scheduler to cron:
+
+```cron
+* * * * * cd /var/www/votelab && php artisan schedule:run >> /dev/null 2>&1
+```
+
+### Cache, locks and logs
+
+- Payment fulfilment uses atomic cache locks. In production use Redis (`CACHE_STORE=redis`,
+  `REDIS_CLIENT=predis`, or `phpredis` if the extension is installed) with AOF persistence and
+  `maxmemory-policy noeviction`, so lock keys are never evicted.
+- Payment decisions are logged to `storage/logs/payments-*.log` (kept 90 days), with ids, amounts and
+  statuses only, never raw Paystack payloads or voter emails.
+- **Close grace window:** `VOTING_CLOSE_GRACE_MINUTES` (default 5) is how long a closed category still
   credits payments that started before it closed. Later payments are recorded as `paid_uncredited` for refund.
 
 All voting settings live in [`config/voting.php`](config/voting.php) and are listed in `.env.example`.
