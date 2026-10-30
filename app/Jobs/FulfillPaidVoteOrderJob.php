@@ -24,6 +24,9 @@ final class FulfillPaidVoteOrderJob implements ShouldQueue
 
     public int $tries = 8;
 
+    /** Seconds before a stuck attempt is killed; covers the lock wait plus one Paystack round trip. */
+    public int $timeout = 60;
+
     public function __construct(
         public readonly string $reference,
     ) {}

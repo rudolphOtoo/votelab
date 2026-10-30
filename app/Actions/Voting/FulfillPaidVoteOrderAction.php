@@ -5,17 +5,13 @@ declare(strict_types=1);
 namespace App\Actions\Voting;
 
 use App\Contracts\PaymentGateway;
-use App\Enums\CategoryStatus;
 use App\Enums\PaymentTrigger;
 use App\Enums\TransactionStatus;
 use App\Events\VotesCredited;
 use App\Exceptions\PaymentGatewayException;
-use App\Models\AwardCategory;
 use App\Models\Nominee;
 use App\Models\VoteRecord;
 use App\Models\VoteTransaction;
-use App\Services\Payment\Data\GatewayPaymentStatus;
-use App\Services\Payment\Data\PaymentVerification;
 use App\Support\VoteKeys;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -27,7 +23,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Shared by the callback and the webhook. Exactly-once is enforced three ways:
  *  1. one cache lock per reference (VoteKeys::fulfilmentLock), waited on rather than failed;
- *  2. a conditional `pending → successful` UPDATE: votes are credited only if it affects one row;
+ *  2. a conditional `pending|expired → successful` UPDATE: votes are credited only if it affects one row;
  *  3. a unique vote_records.vote_transaction_id, so the ledger itself rejects a second credit.
  *
  * Only the quantity snapshotted at checkout is credited, never a recalculated one, and only after
@@ -37,10 +33,13 @@ final readonly class FulfillPaidVoteOrderAction
 {
     public function __construct(
         private PaymentGateway $gateway,
+        private DecidePaymentSettlement $decide,
     ) {}
 
     /**
-     * @throws PaymentGatewayException When Paystack cannot be reached; the transaction stays pending.
+     * Pending and expired transactions are verified; every other status is already settled and returned as is.
+     *
+     * @throws PaymentGatewayException When Paystack cannot be reached; the transaction stays as it was.
      * @throws LockTimeoutException When another trigger holds the lock for too long; retry later.
      */
     public function execute(string $reference, PaymentTrigger $trigger): FulfilmentResult
@@ -68,7 +67,7 @@ final readonly class FulfillPaidVoteOrderAction
             'award_category_id' => $transaction->award_category_id,
         ];
 
-        if ($transaction->status->isFinal()) {
+        if (!$transaction->status->awaitsPayment()) {
             Log::channel('payments')->info(
                 'fulfilment.already_settled',
                 $context
@@ -81,44 +80,23 @@ final readonly class FulfillPaidVoteOrderAction
         }
 
         $verification = $this->gateway->verify($reference);
-        $context += ['provider_status' => $verification->providerStatus];
+        $context += [
+            'provider_status' => $verification->providerStatus,
+            'expected_amount' => $transaction->gross_amount,
+            'verified_amount' => $verification->amount,
+            'verified_currency' => $verification->currency,
+        ];
 
-        if ($verification->status === GatewayPaymentStatus::Pending) {
-            Log::channel('payments')->info('fulfilment.still_pending', $context);
+        $decision = $this->decide->execute($transaction, $verification, $transaction->awardCategory()->firstOrFail());
+
+        if ($decision->settleAs !== null) {
+            return $this->settle($transaction, $decision->settleAs, $decision->reason, $context);
+        }
+
+        if (!$decision->credit) {
+            Log::channel('payments')->info("fulfilment.{$decision->reason}", $context);
 
             return new FulfilmentResult($transaction);
-        }
-
-        if ($verification->status === GatewayPaymentStatus::Failed) {
-            return $this->settle($transaction, TransactionStatus::Failed, 'payment_failed', $context);
-        }
-
-        $mismatch = self::mismatch($transaction, $verification);
-
-        if ($mismatch !== null) {
-            return $this->settle(
-                $transaction,
-                TransactionStatus::Flagged,
-                $mismatch,
-                $context
-                + [
-                    'expected_amount' => $transaction->gross_amount,
-                    'verified_amount' => $verification->amount,
-                    'expected_currency' => $transaction->currency,
-                    'verified_currency' => $verification->currency,
-                ],
-            );
-        }
-
-        $category = $transaction->awardCategory()->firstOrFail();
-
-        if (!self::acceptsPayment($category, $transaction)) {
-            return $this->settle(
-                $transaction,
-                TransactionStatus::PaidUncredited,
-                "category_{$category->status->value}",
-                $context,
-            );
         }
 
         return $this->credit($transaction, $context);
@@ -134,7 +112,7 @@ final readonly class FulfillPaidVoteOrderAction
 
             $affected = VoteTransaction::query()
                 ->whereKey($transaction->id)
-                ->where('status', TransactionStatus::Pending)
+                ->whereIn('status', TransactionStatus::awaitingPayment())
                 ->update([
                     'status' => TransactionStatus::Successful,
                     'status_reason' => null,
@@ -201,7 +179,7 @@ final readonly class FulfillPaidVoteOrderAction
     ): FulfilmentResult {
         $affected = VoteTransaction::query()
             ->whereKey($transaction->id)
-            ->where('status', TransactionStatus::Pending)
+            ->whereIn('status', TransactionStatus::awaitingPayment())
             ->update([
                 'status' => $status,
                 'status_reason' => $reason,
@@ -222,37 +200,5 @@ final readonly class FulfillPaidVoteOrderAction
         );
 
         return new FulfilmentResult($transaction);
-    }
-
-    private static function mismatch(VoteTransaction $transaction, PaymentVerification $verification): ?string
-    {
-        return match (true) {
-            $verification->reference !== $transaction->payment_reference => 'reference_mismatch',
-            $verification->amount !== $transaction->gross_amount => 'amount_mismatch',
-            $verification->currency !== $transaction->currency => 'currency_mismatch',
-            default => null,
-        };
-    }
-
-    /**
-     * Open and embargoed categories always accept. A closed one accepts a payment only if its
-     * checkout started before the close and it is verified inside the close grace window.
-     */
-    private static function acceptsPayment(AwardCategory $category, VoteTransaction $transaction): bool
-    {
-        if (!$category->status->canFulfillPayments()) {
-            return false;
-        }
-
-        if ($category->status !== CategoryStatus::Closed) {
-            return true;
-        }
-
-        return (
-            $category->closed_at !== null
-            && $transaction->created_at !== null
-            && $transaction->created_at->lessThanOrEqualTo($category->closed_at)
-            && $category->isWithinCloseGrace()
-        );
     }
 }

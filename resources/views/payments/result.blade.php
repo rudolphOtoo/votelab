@@ -13,6 +13,7 @@
         TransactionStatus::PaidUncredited => ['warning', 'Voting closed before your payment was confirmed', "Your payment was received after voting closed, so your {$votes} could not be counted. The organizer will arrange a refund. Keep your reference below."],
         TransactionStatus::Flagged => ['danger', 'We could not confirm this payment', 'Something about this payment did not match our records, so no votes were counted. Contact the organizer with your reference below.'],
         TransactionStatus::Refunded => ['warning', 'Payment refunded', 'This payment was refunded, so its votes were not counted.'],
+        TransactionStatus::Expired => ['warning', 'Checkout expired', "We didn't receive a payment for this checkout, so no votes were counted. If you were charged, your {$votes} will be counted as soon as Paystack confirms it."],
     };
 @endphp
 
