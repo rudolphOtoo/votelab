@@ -13,3 +13,5 @@ integrations = ["laravel", "pest", "phpunit"]
 
 [linter.rules]
 literal-named-argument = { enabled = false }
+# Readonly DTOs are built from named arguments; keep the limit strict for ordinary methods.
+excessive-parameter-list = { threshold = 5, constructor-threshold = 10 }

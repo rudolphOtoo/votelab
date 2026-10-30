@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Contracts\PaymentGateway;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Fakes\FakePaymentGateway;
 use Tests\TestCase;
 
 /*
@@ -47,4 +49,15 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Bind an in-memory payment gateway so no test ever reaches Paystack.
+ */
+function fakeGateway(): FakePaymentGateway
+{
+    $gateway = new FakePaymentGateway();
+    app()->instance(PaymentGateway::class, $gateway);
+
+    return $gateway;
 }

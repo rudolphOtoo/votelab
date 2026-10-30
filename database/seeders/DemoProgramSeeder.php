@@ -16,6 +16,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\VoteRecord;
 use App\Models\VoteTransaction;
+use App\Services\Payment\PaystackFeeCalculator;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -78,6 +79,7 @@ final class DemoProgramSeeder extends Seeder
         $organization = Organization::query()->create([
             'name' => 'Accra Campus Creatives',
             'slug' => 'accra-campus-creatives',
+            'paystack_subaccount_code' => 'ACCT_demotestonly',
         ]);
 
         $owner = User::factory()->create([
@@ -142,15 +144,23 @@ final class DemoProgramSeeder extends Seeder
     {
         if ($category->voting_mode->allowsPaidVotes()) {
             foreach (range(1, fake()->numberBetween(1, 6)) as $ignored) {
+                $quote = PaystackFeeCalculator::fromConfig()->quote(quantity: fake()->randomElement([
+                    1,
+                    5,
+                    10,
+                    25,
+                    50,
+                ]), unitPrice: $category->price_per_vote);
                 $transaction = VoteTransaction::factory()
                     ->for($nominee)
                     ->status(TransactionStatus::Successful)
                     ->create([
-                        'unit_price' => $category->price_per_vote,
-                        'quantity' => $quantity = fake()->randomElement([1, 5, 10, 25, 50]),
-                        'net_amount' => $net = $quantity * $category->price_per_vote,
-                        'fee_amount' => $fee = intdiv($net * 195, 10_000),
-                        'gross_amount' => $net + $fee,
+                        'quantity' => $quantity = $quote->quantity,
+                        'unit_price' => $quote->unitPrice,
+                        'net_amount' => $quote->subtotal,
+                        'processing_fee_pesewas' => $quote->processingFee,
+                        'gross_amount' => $quote->total,
+                        'settlement_subaccount_code' => $nominee->organization?->paystack_subaccount_code,
                         'verified_at' => now(),
                         'credited_at' => now(),
                     ]);

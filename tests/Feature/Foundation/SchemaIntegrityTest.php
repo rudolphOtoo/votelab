@@ -82,10 +82,10 @@ it('casts money columns to integers', function (): void {
 
     expect($transaction?->gross_amount)
         ->toBeInt()
-        ->and($transaction?->fee_amount)
+        ->and($transaction?->processing_fee_pesewas)
         ->toBeInt()
         ->and($transaction?->net_amount)
         ->toBeInt()
         ->and($transaction?->gross_amount)
-        ->toBe($transaction?->net_amount + $transaction?->fee_amount);
+        ->toBe($transaction?->net_amount + $transaction?->processing_fee_pesewas);
 });

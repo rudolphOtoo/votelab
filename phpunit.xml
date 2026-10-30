@@ -28,6 +28,11 @@
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="PAYSTACK_SECRET_KEY" value="sk_test_votelab_suite"/>
+        <env name="PAYMENTS_HEALTH_CHECK_ENABLED" value="false"/>
+        <env name="PAYMENTS_LOGGING_ENABLED" value="false"/>
+        <env name="PAYMENTS_DEFAULT_CURRENCY" value="GHS"/>
+        <env name="PAYMENTS_FALLBACK_PROVIDER" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

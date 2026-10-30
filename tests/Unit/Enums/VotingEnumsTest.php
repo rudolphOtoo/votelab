@@ -20,9 +20,10 @@ it('knows which voting modes accept free and paid votes', function (): void {
         ->toBeTrue();
 });
 
-it('treats only pending transactions as unsettled', function (): void {
+it('keeps only pending and expired transactions open to a successful payment', function (): void {
     foreach (TransactionStatus::cases() as $status) {
-        expect($status->isFinal())->toBe($status !== TransactionStatus::Pending, $status->value);
+        expect($status->awaitsPayment())
+            ->toBe(in_array($status, [TransactionStatus::Pending, TransactionStatus::Expired], true), $status->value);
     }
 });
 

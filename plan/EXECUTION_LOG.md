@@ -54,14 +54,14 @@ Task IDs are derived here because the plan has none: `M0.x` = Shared Foundation,
 | A.9 | Policies: AwardProgram, AwardCategory, Nominee | DEV_A §4 | todo |
 | A.10 | Tests `tests/Feature/Admin/*` | DEV_A §Tests | todo |
 | B.1 | `CastFreeVoteAction` | DEV_B §1 | todo |
-| B.2 | `InitiatePaidVoteOrderAction` | DEV_B §1 | todo |
-| B.3 | `FulfillPaidVoteOrderAction` (idempotent crediting) | DEV_B §1 | todo |
+| B.2 | `InitiatePaidVoteOrderAction` | DEV_B §1 | done |
+| B.3 | `FulfillPaidVoteOrderAction` (idempotent crediting) | DEV_B §1 | done |
 | B.4 | Livewire `ProgramLanding` | DEV_B §2 | todo |
 | B.5 | Livewire `CategoryShow` (embargo-safe) | DEV_B §2 | todo |
 | B.6 | Livewire `VoteDrawer` | DEV_B §2 | todo |
-| B.7 | `PaymentGateway` contract + PayZephyr/Paystack adapter + fake | DEV_B §3 / prompt §6 | todo |
-| B.8 | `PaystackFeeCalculator` | DEV_B §3 | todo |
-| B.9 | `PaystackWebhookController` + callback controller + queued job | DEV_B §3 / prompt §5.4 | todo |
+| B.7 | `PaymentGateway` contract + PayZephyr/Paystack adapter + fake | DEV_B §3 / prompt §6 | done |
+| B.8 | `PaystackFeeCalculator` | DEV_B §3 | done |
+| B.9 | `PaystackWebhookController` + callback controller + queued job | DEV_B §3 / prompt §5.4 | done |
 | B.10 | `VoteFingerprintService` + rate limiters | DEV_B §3 | todo |
 | B.11 | Tests `tests/Feature/Voting/*` + concurrency test | DEV_B §Tests | todo |
 | B.12 | K6 load scripts `tests/load/` + README | prompt §6 | todo |
@@ -100,6 +100,28 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 | D-24 | Sheaf components (`button, badge, card, input, modal, toast, avatar`) installed via `sheaf:init --with-livewire`, which uses Livewire's bundled Alpine. Plan tokens live in `resources/css/theme.css`, mapped to Tailwind and Sheaf variables, plus a `[data-theme=stage]` basalt palette. The skeleton's `CLAUDE.md`/`AGENTS.md` (Laravel Boost boilerplate) were not added. | Avoids a duplicate Alpine instance. Keeps one token source. | SHARED §5 |
 | D-25 | `predis/predis` added so Redis works without the `phpredis` extension (not installed locally). | Production cache and locks on Redis (README). | — |
 | D-26 | **Git is manual from Phase 2 onward.** The agent creates the phase branch locally and leaves its work uncommitted. It never commits, pushes, amends, rebases, resets, stashes, merges, or runs `gh pr`. Each phase ends with a Commit Plan (ordered commits, file lists, copy-paste commands, PR title and body) and the agent waits for a go-ahead before the next phase. If a phase starts before its parent merges, it stacks on the parent branch. | Revised execution prompt, 2026-10-30. Phase 1 was already committed and pushed under the earlier prompt (`30f9c8e` on `origin/feature/m0-shared-foundation`); it was left as is, because undoing a pushed commit would need a reset and a force-push. | Prompt §4 |
+| D-27 | PayZephyr's DTOs carry amounts as **floats in cedis**. `PaystackPaymentGateway` is the only place pesewas ↔ cedis conversion happens: outbound amounts are checked to round-trip exactly (`LogicException` otherwise), and verified amounts become `(int) round(amount * 100)`. The domain only sees integer pesewas. | §5.6, Hard-never "no floats for money". Tested from 1 to 4,294,967,295 pesewas. | DEV_B B.7 |
+| D-28 | The gateway goes through `PaymentManager::chargeWithFallback($request, ['paystack'])` and `verify($ref, 'paystack')`, so it's pinned to Paystack with no fallback, and we keep PayZephyr's in-flight double-submit guard, tracing, and ambiguous-outcome protection. PayZephyr's own transaction log is off (`PAYMENTS_LOGGING_ENABLED=false`) and its migrations aren't installed, because `vote_transactions` is the ledger. Its `/payments/webhook/{provider}` route can't be turned off; it's registered but unused. Paystack's dashboard must point at `/api/webhooks/paystack`. | One ledger. Avoids tables nobody reads. | DEV_B B.7, B.9 |
+| D-29 | (§5.12, verified) The Paystack Ghana fee is **1.95% flat, with no cap and no fixed fee**, on local cards, mobile money and bank transfer (Paystack support, "What are Paystack's transaction charges", 2026-10-30). Ghana merchants can't switch on automatic pass-through, so `PaystackFeeCalculator` grosses up: the voter pays the smallest whole-pesewa amount such that `gross - ceil(gross x 1.95%) >= face value`. No subaccount or split is sent, so the main account bears Paystack's fee (covered by the gross-up) and `bearer` doesn't apply. The rate, flat fee and cap are config (`voting.paystack_fee.*`). | Organizer nets face value, per plan. | DEV_B B.8 |
+| D-30 | Verified status mapping: only Paystack's literal `success` is a success. `failed` is a failure. Everything else, including `abandoned`, `ongoing`, `reversed` and unknown states, stays **pending** and is never credited. An abandoned checkout can still be completed by the voter. | §5.4. | DEV_B B.3 |
+| D-31 | Fulfilment (`FulfillPaidVoteOrderAction`) is shared by callback and webhook. It takes `Cache::lock(VoteKeys::fulfilmentLock($ref))->block(wait)`, skips already-settled transactions without re-verifying, verifies, then checks reference, amount (= stored `gross_amount`) and currency. Mismatch → `flagged`; failed → `failed`; category not accepting → `paid_uncredited` with reason `category_{status}`. Otherwise one DB transaction runs a conditional `pending → successful` UPDATE, and only if it affected one row: atomic `votes_count` increment plus a `vote_records` insert. `VotesCredited` dispatches after commit. | §5.3, §5.4, §5.8, D-06, D-23. | DEV_B B.3 |
+| D-32 | A closed category credits a payment only if its checkout was created at or before `closed_at` and it is verified before `closed_at + close_grace_minutes`. | Concrete form of D-10. | DEV_B B.3 |
+| D-33 | The webhook controller checks the signature on the raw body first (401 if bad), returns 200, and queues `FulfillPaidVoteOrderJob` only for `charge.success` with a reference. The payload is never trusted for amounts. The job releases with backoff (8 tries, up to 30 min) while Paystack is unreachable, the lock is held, or the payment is still pending, and logs `fulfilment.gave_up` on final failure. Webhooks live in `routes/api.php` (stateless, no CSRF). | §5.4, prompt §6 Security. | DEV_B B.9 |
+| D-34 | The callback (`GET /payments/callback?reference=` or `trxref=`) runs the same action synchronously and renders `payments.result` for every status. If Paystack is unreachable or the lock is busy it shows the transaction as it stands (pending). It never shows vote totals. Throttled to 30/min. | §5.4 "callback works even if the webhook already credited". | DEV_B B.9 |
+| D-35 | PII: voters may optionally give an email (trimmed, lower-cased, validated, stored). Otherwise Paystack gets `anon-{Str::random(24)}@{voting.proxy_email_domain}` and nothing is stored. Payment logs go to the `payments` channel (90 days) with ids, amounts and statuses only, never raw payloads or emails. | §5.11. | DEV_B B.2 |
+| D-36 | Concurrency is tested deterministically rather than with forked processes: a racing worker settles the row mid-verification (no credit), a pre-existing ledger row makes the credit roll back entirely, and a held lock times out without crediting, then succeeds once released. Real parallel load arrives with the K6 scripts (B.12, Phase 5). | Reliable in CI; covers each layer of D-31 separately. | prompt §6 Testing |
+| D-37 | Mago's `excessive-parameter-list` allows constructors up to 10 parameters (methods stay at 5), so readonly DTOs can be built with named arguments. | DTOs mirror provider payloads. | — |
+| D-38 | **Checkout initialization calls Paystack's `/transaction/initialize` directly** (Laravel `Http`) instead of through PayZephyr. PayZephyr's `PaystackDriver` is `final` and its charge payload drops `split`, so it cannot send `subaccount`, `transaction_charge` or `bearer`, which L-5 requires. Verification and webhook signatures still go through PayZephyr. The amount is sent as integer pesewas, so D-27's float conversion now only applies to verified amounts. Partly supersedes D-28. | L-5 cannot be done otherwise without forking the driver. | DEV_B B.7 |
+| D-39 | **Stuck-pending sweeper:** `payments:reconcile-pending` runs every 5 minutes (`withoutOverlapping`, `onOneServer`). It re-verifies `pending` transactions older than 10 minutes through `FulfillPaidVoteOrderAction` (trigger `sweeper`), 500 per run. If Paystack still says "not paid" after 24 hours, the status becomes `expired` (`unpaid_timeout`). It never expires after a failed verification (outage). `expired` stays open to a late success: credited if the category accepts it, otherwise `paid_uncredited`. A Paystack `failed` on an expired order leaves it expired. | Prompt §4 item 1. | DEV_B B.3 |
+| D-40 | PayZephyr's `POST /payments/webhook/{provider}` is **shadowed by an app route that returns 404** (`bootstrap/app.php`, `then:`); app routes load after package routes, so ours replaces it. Tests prove a correctly signed request there changes no rows, queues nothing and fires no events, and that no listener exists for any PayZephyr event. Supersedes D-28's "registered but unused". | Prompt §4 item 2. | DEV_B B.9 |
+| D-41 | **L-3 pricing:** `total = ceil(subtotal / (1 − rate))`, integer arithmetic, with the rate in `voting.paystack_fee_bps` (195). This replaces D-29's rule (smallest total such that `total − ceil(fee) ≥ subtotal`); flat-fee and cap settings are removed. The two agree on almost every amount. **Caveat:** L-3 guarantees the organizer is never short if Paystack rounds its fee to the nearest pesewa (tested for 1 to 20,000 pesewas). If Paystack rounds its fee *up*, a few totals could leave the organizer 1 pesewa short. To be confirmed in Paystack test mode before launch. | Locked decision L-3. | DEV_B B.8 |
+| D-42 | **L-5 settlement:** `organizations.paystack_subaccount_code` (per organization; every event of the organizer settles there). Checkout sends `subaccount`, `transaction_charge: 0` (main account takes nothing) and `bearer: subaccount` (configurable, validated to `account`/`subaccount`). The code is snapshotted on `vote_transactions.settlement_subaccount_code`. Without a code, paid checkout is blocked with "Paid voting is not set up for this event yet. Organizers: add your Paystack subaccount code…". **Open verification:** Paystack's split-payments guide documents `subaccount`, `transaction_charge` and `bearer: "subaccount"`, but not a 100%-to-subaccount setup explicitly. Confirm in test mode that `transaction_charge: 0` leaves the main account nothing and that the subaccount bears the fee. | Locked decision L-5. | DEV_B B.2, B.7 |
+| D-43 | **L-4:** `voting.platform_fee_bps` and `VOTING_PLATFORM_FEE_BPS` removed; no commission or split logic anywhere. Supersedes D-13's reserved key. | Locked decision L-4. | — |
+| D-44 | **L-3/L-8 naming:** `vote_transactions.fee_amount` renamed to `processing_fee_pesewas` (new migration; Phase 1 migrations untouched). `VotePriceQuote` exposes `subtotal`, `processingFee`, `total`. `QuotePaidVotesAction` holds every paid-vote eligibility rule and the price; the drawer (Phase 3) and `InitiatePaidVoteOrderAction` both use it, so the breakdown shown equals what is stored and sent to Paystack (tested). | Locked decisions L-3, L-8. | DEV_B B.2, B.6 |
+| D-45 | **Invoicing totals:** `SummarizeProgramRevenueAction` runs one grouped query per program and returns credited totals (transactions, votes, vote price, processing fees, gross), `paid_uncredited` totals (refund liability) and a count per status. Tested to reconcile with the ledger and to exclude other programs. | Prompt §4 item 5. | DEV_A A.7 (export later) |
+| D-46 | The verified-payment decision moved into a pure `DecidePaymentSettlement` returning a `SettlementDecision` (credit / wait / settle-as-status). `FulfillPaidVoteOrderAction` only locks, verifies, decides and applies. | Keeps each class under Mago's complexity limit, and the rules are readable in one place. | DEV_B B.3 |
+| D-47 | `Tests\TestCase` calls `withoutVite()`, so view tests don't need `npm run build`. Found by checking each commit in a clean export. | Tests mustn't depend on build artifacts. | — |
+| D-48 | Locked decisions from the continuation prompt are recorded as: L-1 = D-26; L-2 = stacking rule (Phase 3 branches from `feature/phase-2-payments` while m0 and Phase 2 are unmerged); L-3 = D-41/D-44; L-4 = D-43; L-5 = D-42; L-6 = D-27/D-38; L-7 = D-05/D-23; L-8 = D-44. | Continuation prompt §3. | All |
 | D-15 | Add `award_program_id` to `vote_transactions` and `vote_records`, index `vote_transactions(award_category_id, status)`, and use `scopeBindings()` for program → category → nominee routes. | Hot queries and event-scoped binding (prompt §6). | SHARED §2 |
 
 ---
@@ -112,6 +134,121 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 - Gates: `composer lint:check`, `composer types:check` (level 8, 0 errors), `php artisan test --parallel` (37 tests), `migrate:fresh --seed` all pass. CI workflow added.
 - Deferred: Fortify views and `User` 2FA/passkey wiring to Phase 4 (admin login). The `welcome` route stays until Phase 3 (B.4).
 - PayZephyr findings for Phase 2: config defaults to `NGN` and a `stripe` fallback (overridden by `.env.example` to GHS and no fallback). It ships its own webhook route (`/payments/webhook`) and `payment_transactions` tables via `payzephyr:install`. Its fluent `amount()` takes major units, so check the pesewas path in `vendor/` before writing B.7.
+
+### Phase 2 — Money path (`feature/phase-2-payments`, stacked on `feature/m0-shared-foundation`) — done, awaiting commit
+- **Base:** `feature/m0-shared-foundation` (at `e43a59f`, not yet merged to `dev`). No files owned by Phase 1 were changed except shared config and wiring: `.env.example`, `config/voting.php`, `config/logging.php`, `bootstrap/app.php`, `routes/web.php`, `phpunit.xml`, `tests/Pest.php`, `mago.toml`, `AppServiceProvider`.
+- **Built:** B.7 gateway contract + PayZephyr adapter + test fake; B.8 fee calculator; B.2 checkout initiation; B.3 idempotent fulfilment; B.9 webhook endpoint, queued job and callback page.
+- **Gates:** `composer lint:check`, `composer types:check` (level 8, 0 errors), `php artisan test --parallel` (117 tests, 394 assertions), `migrate:fresh --seed`, `npm run build` all pass. No test touches the network.
+- **Not in this phase:** rate limiting of checkout initiation is applied where it is called (VoteDrawer, Phase 3, B.6/B.10). Leaderboard cache invalidation will listen to `VotesCredited` (Phase 3). Tally rebuild command and drift report: Phase 5.
+- **Ops:** set the Paystack dashboard webhook URL to `https://<host>/api/webhooks/paystack`. Run a queue worker.
+
+#### Commit Plan (Phase 2)
+
+Run from the repo root on `feature/phase-2-payments`:
+
+```bash
+# 1. Config (no code depends on it yet)
+git add .env.example config/voting.php config/logging.php phpunit.xml mago.toml
+git commit -m "chore(payments): add Paystack fee, reference and lock config and payments log channel [B.7][B.8]"
+
+# 2. Gateway contract, PayZephyr adapter and fee calculator
+git add app/Contracts/PaymentGateway.php app/Exceptions/PaymentGatewayException.php app/Services/Payment/ app/Providers/AppServiceProvider.php app/Support/Money.php tests/Fakes/FakePaymentGateway.php tests/Pest.php tests/Feature/Payment/PaystackPaymentGatewayTest.php tests/Unit/Payment/PaystackFeeCalculatorTest.php
+git commit -m "feat(payments): add PaymentGateway contract, PayZephyr Paystack adapter and fee calculator [B.7][B.8]"
+
+# 3. Checkout initiation, idempotent fulfilment, webhook, callback (routes ship with their controllers)
+git add app/Actions/Voting/ app/Enums/PaymentTrigger.php app/Events/VotesCredited.php app/Exceptions/Voting/CheckoutUnavailableException.php app/Support/VoteKeys.php app/Http/Controllers/Payment/ app/Jobs/FulfillPaidVoteOrderJob.php resources/views/payments/result.blade.php routes/api.php routes/web.php bootstrap/app.php tests/Feature/Voting/
+git commit -m "feat(voting): initiate paid orders and credit verified payments exactly once via webhook and callback [B.2][B.3][B.9]"
+
+# 4. Execution log
+git add plan/EXECUTION_LOG.md
+git commit -m "docs(plan): log Phase 2 decisions and commit plan"
+
+git push -u origin feature/phase-2-payments
+```
+
+#### PR (Phase 2)
+
+**Title:** `feat(payments): Paystack checkout, verification and exactly-once vote crediting [B.2][B.3][B.7][B.8][B.9]`
+
+**Body:**
+
+```
+Base: `feature/m0-shared-foundation` until it merges, then retarget to `dev`.
+
+Implements the paid-vote money path from plan/DEV_B.md:
+- PaymentGateway contract + PayZephyr Paystack adapter (pinned to Paystack, no fallback) + in-memory fake for tests
+- PaystackFeeCalculator: Ghana 1.95%, no cap; voter covers the fee so the organizer nets face value (integer pesewas)
+- InitiatePaidVoteOrderAction: validates program/category/mode/quantity, snapshots all amounts on a pending transaction, starts Hosted Checkout
+- FulfillPaidVoteOrderAction: lock + conditional pending→successful UPDATE + unique ledger row; verifies status, amount, currency, reference; flagged / failed / paid_uncredited paths
+- POST /api/webhooks/paystack (HMAC-SHA512 on raw body, 200 fast, queued job with backoff) and GET /payments/callback (idempotent result page)
+
+Decisions: D-27 to D-37 in plan/EXECUTION_LOG.md (float boundary in PayZephyr, fee gross-up, status mapping, grace window, PII).
+
+How to test:
+composer check
+php artisan test --filter=Voting
+# Manual: set PAYSTACK test keys, run `php artisan queue:work`, point the Paystack test webhook at /api/webhooks/paystack
+
+Ops: Paystack dashboard webhook URL must be /api/webhooks/paystack (PayZephyr's /payments/webhook/{provider} is unused). A queue worker is required.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+Checked before handover: `git diff` and the untracked files contain no `.env`, keys or build output. `.env.example` has blank Paystack keys, and `phpunit.xml` only carries the dummy `sk_test_votelab_suite`. `public/build` and `storage/` are git-ignored.
+
+### Phase 2 hardening (continuation prompt §4) — done, awaiting commit
+- **Branch:** `feature/phase-2-payments`, on top of your commits `fc404d5…32826d3`. Base is still `feature/m0-shared-foundation` (not in `dev`).
+- **Built:**
+  - Stuck-pending sweeper and `expired` status (D-39).
+  - PayZephyr route neutralised and proven inert (D-40).
+  - L-3/L-5/L-8: fee rate in config, `processing_fee_pesewas`, subaccount settlement with the no-subaccount block, and a quote action shared by drawer and checkout (D-41–D-44).
+  - Job timeout plus a README section on Supervisor/Horizon and cron (item 4).
+  - Revenue totals for invoicing (D-45).
+- **Gates:** `composer lint:check`, `composer types:check` (0 errors), `php artisan test --parallel` (157 tests), `migrate:fresh --seed`, `npm run build`. Each planned commit was also checked on its own in a clean `git archive` export (tests and PHPStan pass after each).
+- **Before launch, in Paystack test mode:** (1) the 100%-to-subaccount settlement and `bearer: subaccount` behave as intended (D-42); (2) how Paystack rounds its 1.95% fee (D-41 caveat).
+
+#### Commit Plan (Phase 2 hardening)
+
+```bash
+# 1. Settlement and pricing (L-3, L-5, L-8)
+git add database/migrations/2026_10_30_200001_add_paystack_settlement_to_organizations_and_vote_transactions.php app/Models/Organization.php app/Models/VoteTransaction.php database/factories/OrganizationFactory.php database/factories/VoteTransactionFactory.php database/seeders/DemoProgramSeeder.php app/Services/Payment/PaystackFeeCalculator.php app/Services/Payment/Data/VotePriceQuote.php app/Services/Payment/Data/CheckoutRequest.php app/Services/Payment/PaystackPaymentGateway.php app/Actions/Voting/QuotePaidVotesAction.php app/Actions/Voting/InitiatePaidVoteOrderAction.php app/Exceptions/Voting/CheckoutUnavailableException.php config/voting.php .env.example tests/TestCase.php tests/Unit/Payment/PaystackFeeCalculatorTest.php tests/Feature/Payment/PaystackPaymentGatewayTest.php tests/Feature/Voting/PaidVoteInitiationTest.php tests/Feature/Voting/QuotePaidVotesTest.php tests/Feature/Foundation/SchemaIntegrityTest.php tests/Feature/Voting/FulfillPaidVoteOrderTest.php
+git commit -m "feat(payments): settle 100% to the organizer subaccount with a voter-paid processing fee [B.2][B.7][B.8]"
+
+# 2. Stuck-pending sweeper and expired status
+git add app/Enums/TransactionStatus.php app/Enums/PaymentTrigger.php app/Actions/Voting/FulfillPaidVoteOrderAction.php app/Actions/Voting/DecidePaymentSettlement.php app/Actions/Voting/SettlementDecision.php app/Actions/Voting/ReconcilePendingPaymentsAction.php app/Actions/Voting/ReconciliationSummary.php app/Console/Commands/ReconcilePendingPaymentsCommand.php routes/console.php resources/views/payments/result.blade.php app/Jobs/FulfillPaidVoteOrderJob.php tests/Unit/Enums/VotingEnumsTest.php tests/Feature/Voting/ReconcilePendingPaymentsTest.php
+git commit -m "feat(payments): re-verify stale pending payments and expire unpaid checkouts [B.3]"
+
+# 3. Neutralise PayZephyr's built-in webhook route
+git add bootstrap/app.php tests/Feature/Payment/PayZephyrBuiltInWebhookTest.php
+git commit -m "fix(payments): disable PayZephyr's built-in webhook route so only /api/webhooks/paystack is accepted [B.9]"
+
+# 4. Revenue totals for invoicing
+git add app/Actions/Voting/RevenueTotals.php app/Actions/Voting/ProgramRevenueSummary.php app/Actions/Voting/SummarizeProgramRevenueAction.php tests/Feature/Voting/ProgramRevenueSummaryTest.php
+git commit -m "feat(payments): add per-program revenue totals for invoicing [B.3]"
+
+# 5. Operations docs and execution log
+git add README.md plan/EXECUTION_LOG.md
+git commit -m "docs: document queue worker, scheduler and Paystack settlement; log Phase 2 hardening"
+
+git push
+```
+
+Secrets check: no `.env`, no keys and no build output in the diff. `.env.example` keeps blank Paystack keys; the only key-like strings are the dummy `sk_test_votelab_suite` in tests/`phpunit.xml` and `ACCT_demotestonly` in the demo seeder.
+
+#### PR body addendum (Phase 2)
+
+Append to the Phase 2 PR description:
+
+```
+Hardening (continuation prompt §4):
+- Settlement: 100% to the organization's Paystack subaccount (`subaccount`, `transaction_charge: 0`, `bearer: subaccount`); paid checkout blocked without a subaccount code. Initialize now calls Paystack directly because PayZephyr cannot send these fields (D-38, D-42).
+- Pricing: total = ceil(vote price / (1 − 1.95%)); `processing_fee_pesewas` stored; one quote action feeds the drawer and checkout (D-41, D-44).
+- Sweeper: `payments:reconcile-pending` every 5 min; credits missed webhooks, expires unpaid checkouts after 24 h; late successes still credit or become paid_uncredited (D-39).
+- PayZephyr's /payments/webhook/{provider} now returns 404 and is proven inert (D-40).
+- Revenue totals per program for invoicing (D-45). README: Supervisor/Horizon + cron.
+
+Verify in Paystack test mode before launch: 100%-to-subaccount settlement and fee rounding (D-41, D-42).
+```
 
 ## 4. Open Questions (blockers)
 
