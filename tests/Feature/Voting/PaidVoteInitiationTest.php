@@ -23,7 +23,7 @@ function paidNominee(
 }
 
 beforeEach(function (): void {
-    config(['voting.paystack_fee' => ['bps' => 195, 'flat' => 0, 'cap' => null]]);
+    config(['voting.paystack_fee_bps' => 195]);
     $this->gateway = fakeGateway();
 });
 
@@ -42,7 +42,7 @@ it('snapshots gross, fee and net for 25 votes at GHS 1.00 on a pending transacti
         ->toBe(100)
         ->and($transaction->net_amount)
         ->toBe(2_500)
-        ->and($transaction->fee_amount)
+        ->and($transaction->processing_fee_pesewas)
         ->toBe(50)
         ->and($transaction->gross_amount)
         ->toBe(2_550)

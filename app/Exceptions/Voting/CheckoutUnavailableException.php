@@ -22,6 +22,16 @@ final class CheckoutUnavailableException extends RuntimeException
         return new self('This category does not accept paid votes.');
     }
 
+    /**
+     * The organization has no Paystack subaccount, so there is nowhere to settle the money (L-5).
+     */
+    public static function paidVotingNotSetUp(): self
+    {
+        return new self(
+            'Paid voting is not set up for this event yet. Organizers: add your Paystack subaccount code in your organization settings.',
+        );
+    }
+
     public static function invalidQuantity(int $max): self
     {
         return new self("Choose between 1 and {$max} votes.");

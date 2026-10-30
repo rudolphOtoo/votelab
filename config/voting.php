@@ -53,32 +53,31 @@ return [
 
     /*
      |--------------------------------------------------------------------------
-     | Platform Fee
+     | Paystack Processing Fee (L-3)
      |--------------------------------------------------------------------------
      |
-     | Platform commission in basis points (100 = 1%). Zero until a platform
-     | split is agreed; see plan/EXECUTION_LOG.md (D-13).
+     | Paystack's rate in basis points (195 = 1.95%). The voter pays it on top:
+     | total = ceil(vote price / (1 - rate)). Ghana: 1.95% on local cards, mobile
+     | money and bank transfer, no cap, no flat fee (Paystack support, 2026-10-30).
      |
      */
 
-    'platform_fee_bps' => (int) env('VOTING_PLATFORM_FEE_BPS', 0),
+    'paystack_fee_bps' => (int) env('VOTING_PAYSTACK_FEE_BPS', 195),
 
     /*
      |--------------------------------------------------------------------------
-     | Paystack Processing Fee
+     | Settlement (L-4, L-5)
      |--------------------------------------------------------------------------
      |
-     | Used to gross up paid votes so the organizer nets the full face value and
-     | the voter covers Paystack's fee. Ghana: 1.95% on local cards, mobile money
-     | and bank transfer, no cap, no flat fee (Paystack support, 2026-10-30).
-     | Amounts are pesewas; set the cap to null for no cap.
+     | Paid votes settle 100% to the organization's Paystack subaccount, sent as
+     | `subaccount` with a main-account `transaction_charge` of 0. There is no
+     | platform commission. `bearer` decides who pays Paystack's fee: the
+     | subaccount, out of the processing fee the voter paid on top.
      |
      */
 
-    'paystack_fee' => [
-        'bps' => (int) env('VOTING_PAYSTACK_FEE_BPS', 195),
-        'flat' => (int) env('VOTING_PAYSTACK_FEE_FLAT', 0),
-        'cap' => filled(env('VOTING_PAYSTACK_FEE_CAP')) ? (int) env('VOTING_PAYSTACK_FEE_CAP') : null,
+    'settlement' => [
+        'bearer' => env('VOTING_PAYSTACK_BEARER', 'subaccount'),
     ],
 
     /*
@@ -92,6 +91,24 @@ return [
      */
 
     'reference_prefix' => env('VOTING_REFERENCE_PREFIX', 'VL'),
+
+    /*
+     |--------------------------------------------------------------------------
+     | Pending Payment Sweeper
+     |--------------------------------------------------------------------------
+     |
+     | payments:reconcile-pending re-verifies pending payments older than
+     | verify_after_minutes, and expires those still unpaid after
+     | expire_after_hours. A late success on an expired payment is still credited
+     | (or recorded as paid_uncredited if voting has closed).
+     |
+     */
+
+    'sweeper' => [
+        'verify_after_minutes' => (int) env('VOTING_SWEEPER_VERIFY_AFTER_MINUTES', 10),
+        'expire_after_hours' => (int) env('VOTING_SWEEPER_EXPIRE_AFTER_HOURS', 24),
+        'batch_size' => (int) env('VOTING_SWEEPER_BATCH_SIZE', 500),
+    ],
 
     'fulfilment_lock' => [
         'seconds' => (int) env('VOTING_FULFILMENT_LOCK_SECONDS', 30),

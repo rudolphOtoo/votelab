@@ -4,71 +4,67 @@ declare(strict_types=1);
 
 use App\Services\Payment\PaystackFeeCalculator;
 
-function ghanaCalculator(int $bps = 195, int $flat = 0, ?int $cap = null): PaystackFeeCalculator
-{
-    return new PaystackFeeCalculator(feeBps: $bps, flatFee: $flat, feeCap: $cap);
-}
-
-it('prices 25 votes at GHS 1.00 so the organizer nets exactly GHS 25.00', function (): void {
-    $quote = ghanaCalculator()->quote(quantity: 25, unitPrice: 100);
+it('prices 25 votes at GHS 1.00: GHS 25.00 subtotal + GHS 0.50 fee = GHS 25.50', function (): void {
+    $quote = new PaystackFeeCalculator(feeBps: 195)->quote(quantity: 25, unitPrice: 100);
 
     expect($quote->quantity)
         ->toBe(25)
         ->and($quote->unitPrice)
         ->toBe(100)
-        ->and($quote->netAmount)
+        ->and($quote->subtotal)
         ->toBe(2_500)
-        ->and($quote->grossAmount)
-        ->toBe(2_550)
-        ->and($quote->feeAmount)
-        ->toBe(50);
+        ->and($quote->processingFee)
+        ->toBe(50)
+        ->and($quote->total)
+        ->toBe(2_550);
 });
 
-it('estimates the Paystack fee rounded up to the next pesewa', function (): void {
-    $calculator = ghanaCalculator();
+it('charges exactly ceil(subtotal / (1 - rate)), to the pesewa', function (): void {
+    $calculator = new PaystackFeeCalculator(feeBps: 195);
 
-    expect($calculator->gatewayFeeFor(2_500))
-        ->toBe(49) // 48.75
-        ->and($calculator->gatewayFeeFor(2_550))
-        ->toBe(50) // 49.725
-        ->and($calculator->gatewayFeeFor(100))
-        ->toBe(2); // 1.95
-});
+    foreach ([1, 7, 49, 50, 99, 100, 101, 333, 1_000, 2_500, 9_999, 123_456, 1_000_000, 4_000_000_000] as $subtotal) {
+        $quote = $calculator->quote(quantity: 1, unitPrice: $subtotal);
 
-it('always leaves the organizer at least the face value, with the smallest possible gross', function (): void {
-    $calculator = ghanaCalculator();
-
-    foreach ([1, 7, 49, 50, 99, 100, 101, 333, 1_000, 2_500, 9_999, 123_456, 1_000_000] as $net) {
-        $quote = $calculator->quote(quantity: $net, unitPrice: 1);
-
-        expect($quote->grossAmount - $calculator->gatewayFeeFor($quote->grossAmount))
-            ->toBeGreaterThanOrEqual($net, "net {$net}")
-            ->and($quote->grossAmount - 1 - $calculator->gatewayFeeFor($quote->grossAmount - 1))
-            ->toBeLessThan($net, "gross for net {$net} is not minimal")
-            ->and($quote->feeAmount)
-            ->toBe($quote->grossAmount - $quote->netAmount);
+        // total x (1 - rate) >= subtotal, and one pesewa less would not be.
+        expect($quote->total * 9_805)
+            ->toBeGreaterThanOrEqual($subtotal * 10_000, "subtotal {$subtotal}")
+            ->and(($quote->total - 1) * 9_805)
+            ->toBeLessThan($subtotal * 10_000, "subtotal {$subtotal}");
     }
 });
 
-it('respects a flat fee and a fee cap when configured', function (): void {
-    $capped = ghanaCalculator(bps: 150, flat: 10, cap: 200)->quote(quantity: 1_000, unitPrice: 100);
+it('splits every total into exactly the organizer amount plus the processing fee', function (): void {
+    $calculator = new PaystackFeeCalculator(feeBps: 195);
 
-    expect($capped->netAmount)
-        ->toBe(100_000)
-        ->and($capped->feeAmount)
-        ->toBe(200)
-        ->and($capped->grossAmount)
-        ->toBe(100_200);
+    foreach (range(1, 2_000) as $quantity) {
+        $quote = $calculator->quote(quantity: $quantity, unitPrice: 50);
+
+        expect($quote->subtotal)
+            ->toBe($quantity * 50)
+            ->and($quote->subtotal + $quote->processingFee)
+            ->toBe($quote->total);
+    }
 });
 
-it('charges no surcharge when the fee rate is zero', function (): void {
-    $quote = ghanaCalculator(bps: 0)->quote(quantity: 10, unitPrice: 100);
+it('never leaves the organizer short when Paystack rounds its fee to the nearest pesewa', function (): void {
+    $calculator = new PaystackFeeCalculator(feeBps: 195);
 
-    expect($quote->grossAmount)->toBe(1_000)->and($quote->feeAmount)->toBe(0);
+    foreach (range(1, 20_000) as $subtotal) {
+        $total = $calculator->quote(quantity: 1, unitPrice: $subtotal)->total;
+        $paystackFee = intdiv(($total * 195) + 5_000, 10_000); // round half up
+
+        expect($total - $paystackFee)->toBeGreaterThanOrEqual($subtotal, "subtotal {$subtotal}");
+    }
+});
+
+it('charges no processing fee when the rate is zero', function (): void {
+    $quote = new PaystackFeeCalculator(feeBps: 0)->quote(quantity: 10, unitPrice: 100);
+
+    expect($quote->total)->toBe(1_000)->and($quote->processingFee)->toBe(0);
 });
 
 it('rejects non-positive quantities and prices', function (int $quantity, int $unitPrice): void {
-    ghanaCalculator()->quote($quantity, $unitPrice);
+    new PaystackFeeCalculator(feeBps: 195)->quote($quantity, $unitPrice);
 })->with([
     'zero quantity' => [0, 100],
     'negative quantity' => [-1, 100],
@@ -76,5 +72,9 @@ it('rejects non-positive quantities and prices', function (int $quantity, int $u
 ])->throws(InvalidArgumentException::class);
 
 it('rejects totals that do not fit the transaction amount columns', function (): void {
-    ghanaCalculator()->quote(quantity: 10_000, unitPrice: 1_000_000);
+    new PaystackFeeCalculator(feeBps: 195)->quote(quantity: 10_000, unitPrice: 1_000_000);
 })->throws(InvalidArgumentException::class);
+
+it('rejects impossible rates', function (int $bps): void {
+    new PaystackFeeCalculator(feeBps: $bps);
+})->with([-1, 10_000])->throws(InvalidArgumentException::class);

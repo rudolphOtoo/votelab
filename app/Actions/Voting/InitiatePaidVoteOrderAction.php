@@ -12,19 +12,19 @@ use App\Models\Nominee;
 use App\Models\VoteTransaction;
 use App\Services\Payment\Data\CheckoutRequest;
 use App\Services\Payment\Data\CheckoutSession;
-use App\Services\Payment\PaystackFeeCalculator;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
- * Prices a paid-vote order, records it as a pending transaction with every amount snapshotted,
- * and starts a Paystack Hosted Checkout. Fulfilment later credits the stored values only.
+ * Prices a paid-vote order (QuotePaidVotesAction), records it as a pending transaction with every
+ * amount and the settlement subaccount snapshotted, and starts a Paystack Hosted Checkout.
+ * Fulfilment later credits the stored values only.
  */
 final readonly class InitiatePaidVoteOrderAction
 {
     public function __construct(
         private PaymentGateway $gateway,
-        private PaystackFeeCalculator $fees,
+        private QuotePaidVotesAction $quotes,
     ) {}
 
     /**
@@ -32,25 +32,9 @@ final readonly class InitiatePaidVoteOrderAction
      */
     public function execute(Nominee $nominee, int $quantity, ?string $voterEmail = null): CheckoutSession
     {
-        $category = $nominee->awardCategory()->firstOrFail();
-        $program = $category->awardProgram()->firstOrFail();
-
-        if (!$program->status->isPublic() || !$category->status->isVotingAllowed()) {
-            throw CheckoutUnavailableException::votingNotOpen();
-        }
-
-        if (!$category->voting_mode->allowsPaidVotes()) {
-            throw CheckoutUnavailableException::paidVotesNotAccepted();
-        }
-
-        $maxQuantity = (int) config('voting.max_votes_per_order');
-
-        if ($quantity < 1 || $quantity > $maxQuantity) {
-            throw CheckoutUnavailableException::invalidQuantity($maxQuantity);
-        }
-
+        $quote = $this->quotes->execute($nominee, $quantity);
         $email = self::normalizeEmail($voterEmail);
-        $quote = $this->fees->quote($quantity, $category->price_per_vote);
+        $subaccountCode = (string) $nominee->organization()->value('paystack_subaccount_code');
 
         $transaction = VoteTransaction::query()->create([
             'organization_id' => $nominee->organization_id,
@@ -59,12 +43,13 @@ final readonly class InitiatePaidVoteOrderAction
             'nominee_id' => $nominee->id,
             'quantity' => $quote->quantity,
             'unit_price' => $quote->unitPrice,
-            'gross_amount' => $quote->grossAmount,
-            'fee_amount' => $quote->feeAmount,
-            'net_amount' => $quote->netAmount,
+            'net_amount' => $quote->subtotal,
+            'processing_fee_pesewas' => $quote->processingFee,
+            'gross_amount' => $quote->total,
             'currency' => (string) config('voting.currency'),
             'payment_provider' => 'paystack',
             'payment_reference' => config('voting.reference_prefix') . '_' . Str::ulid()->toBase32(),
+            'settlement_subaccount_code' => $subaccountCode,
             'status' => TransactionStatus::Pending,
             'voter_email' => $email,
         ]);
@@ -85,6 +70,7 @@ final readonly class InitiatePaidVoteOrderAction
                 currency: $transaction->currency,
                 email: $email ?? self::proxyEmail(),
                 callbackUrl: route('payments.callback'),
+                subaccountCode: $subaccountCode,
                 metadata: ['vote_transaction_id' => $transaction->id],
             ));
         } catch (PaymentGatewayException $e) {

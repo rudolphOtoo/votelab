@@ -24,7 +24,13 @@ final class OrganizationFactory extends Factory
             'name' => $name,
             'slug' => Str::slug($name) . '-' . Str::lower(Str::random(4)),
             'logo_url' => null,
+            'paystack_subaccount_code' => 'ACCT_' . Str::lower(Str::random(10)),
             'settings' => null,
         ];
+    }
+
+    public function withoutPaystackSubaccount(): self
+    {
+        return $this->state(['paystack_subaccount_code' => null]);
     }
 }

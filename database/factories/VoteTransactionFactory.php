@@ -45,7 +45,7 @@ final class VoteTransactionFactory extends Factory
             'quantity' => $quantity,
             'unit_price' => $unitPrice,
             'gross_amount' => $net + $fee,
-            'fee_amount' => $fee,
+            'processing_fee_pesewas' => $fee,
             'net_amount' => $net,
             'currency' => 'GHS',
             'payment_provider' => 'paystack',

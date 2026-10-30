@@ -30,7 +30,7 @@ function pendingOrder(int $quantity = 10, CategoryStatus $status = CategoryStatu
         'quantity' => $quantity,
         'unit_price' => 100,
         'net_amount' => $quantity * 100,
-        'fee_amount' => 20,
+        'processing_fee_pesewas' => 20,
         'gross_amount' => ($quantity * 100) + 20,
     ]);
 

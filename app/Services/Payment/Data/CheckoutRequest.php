@@ -15,6 +15,7 @@ final readonly class CheckoutRequest
         public string $currency,
         public string $email,
         public string $callbackUrl,
+        public string $subaccountCode, // Receives 100% of the payment (L-5)
         public array $metadata = [],
     ) {}
 }

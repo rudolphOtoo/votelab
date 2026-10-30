@@ -10,17 +10,18 @@ use App\Services\Payment\Data\CheckoutRequest;
 use App\Services\Payment\Data\CheckoutSession;
 use App\Services\Payment\Data\GatewayPaymentStatus;
 use App\Services\Payment\Data\PaymentVerification;
-use InvalidArgumentException;
-use KenDeNigerian\PayZephyr\DataObjects\ChargeRequestDTO;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use KenDeNigerian\PayZephyr\Exceptions\PaymentException;
 use KenDeNigerian\PayZephyr\PaymentManager;
 use LogicException;
 
 /**
- * Paystack Hosted Checkout through PayZephyr, pinned to Paystack with no fallback provider.
+ * Paystack Hosted Checkout. Verification and webhook signatures go through PayZephyr, pinned to
+ * Paystack with no fallback; checkout initialization calls Paystack directly (see initialize()).
  *
- * PayZephyr's DTOs carry amounts as floats in major units (cedis). Pesewas are converted
- * only at this boundary, and every conversion is checked to round-trip exactly.
+ * PayZephyr reports verified amounts as floats in cedis. They are converted back to integer
+ * pesewas here, at the boundary; the domain only ever sees pesewas.
  */
 final readonly class PaystackPaymentGateway implements PaymentGateway
 {
@@ -30,30 +31,52 @@ final readonly class PaystackPaymentGateway implements PaymentGateway
         private PaymentManager $payments,
     ) {}
 
+    /**
+     * Starts Hosted Checkout with Paystack's API directly: PayZephyr's Paystack driver cannot send
+     * `subaccount`, `transaction_charge` or `bearer` (D-38). The amount is already in pesewas.
+     */
     public function initialize(CheckoutRequest $request): CheckoutSession
     {
         try {
-            $response = $this->payments->chargeWithFallback(
-                new ChargeRequestDTO(
-                    amount: self::toMajorUnits($request->amount),
-                    currency: $request->currency,
-                    email: $request->email,
-                    reference: $request->reference,
-                    callbackUrl: $request->callbackUrl,
-                    metadata: $request->metadata,
-                    idempotencyKey: $request->reference,
-                ),
-                [self::PROVIDER],
-            );
-        } catch (PaymentException|InvalidArgumentException $e) {
-            throw new PaymentGatewayException('Paystack checkout could not be started.', previous: $e);
+            $response = Http::baseUrl((string) config('payments.providers.paystack.base_url'))
+                ->withToken((string) config('payments.providers.paystack.secret_key'))
+                ->acceptJson()
+                ->connectTimeout(5)
+                ->timeout(15)
+                ->post('/transaction/initialize', [
+                    'email' => $request->email,
+                    'amount' => $request->amount,
+                    'currency' => $request->currency,
+                    'reference' => $request->reference,
+                    'callback_url' => $request->callbackUrl,
+                    'metadata' => $request->metadata,
+                    // Settlement (L-4, L-5): everything to the organizer's subaccount, nothing to the
+                    // main account, and the subaccount bears Paystack's fee out of the voter's processing fee.
+                    'subaccount' => $request->subaccountCode,
+                    'transaction_charge' => 0,
+                    'bearer' => self::bearer(),
+                ]);
+        } catch (ConnectionException $e) {
+            throw new PaymentGatewayException('Paystack could not be reached to start checkout.', previous: $e);
         }
 
-        if ($response->reference !== $request->reference || $response->authorizationUrl === '') {
-            throw new PaymentGatewayException('Paystack returned an unexpected checkout response.');
+        $authorizationUrl = $response->json('data.authorization_url');
+
+        if (!$response->successful() || $response->json('status') !== true || !is_string($authorizationUrl)) {
+            throw new PaymentGatewayException(sprintf(
+                'Paystack refused to start checkout (HTTP %d): %s',
+                $response->status(),
+                is_string($response->json('message')) ? $response->json('message') : 'no message',
+            ));
         }
 
-        return new CheckoutSession(reference: $response->reference, authorizationUrl: $response->authorizationUrl);
+        $reference = $response->json('data.reference', $request->reference);
+
+        if ($reference !== $request->reference) {
+            throw new PaymentGatewayException('Paystack returned a different reference than the one requested.');
+        }
+
+        return new CheckoutSession(reference: $request->reference, authorizationUrl: $authorizationUrl);
     }
 
     public function verify(string $reference): PaymentVerification
@@ -96,14 +119,14 @@ final readonly class PaystackPaymentGateway implements PaymentGateway
         }
     }
 
-    private static function toMajorUnits(int $pesewas): float
+    private static function bearer(): string
     {
-        $major = $pesewas / 100;
+        $bearer = config('voting.settlement.bearer');
 
-        if ((int) round($major * 100) !== $pesewas) {
-            throw new LogicException("Amount {$pesewas} pesewas does not convert exactly to major units.");
+        if (!in_array($bearer, ['account', 'subaccount'], true)) {
+            throw new LogicException('voting.settlement.bearer must be "account" or "subaccount".');
         }
 
-        return (float) $major;
+        return $bearer;
     }
 }

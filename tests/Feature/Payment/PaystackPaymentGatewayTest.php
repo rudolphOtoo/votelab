@@ -11,6 +11,8 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use KenDeNigerian\PayZephyr\Drivers\PaystackDriver;
 use KenDeNigerian\PayZephyr\PaymentManager;
 
@@ -57,67 +59,98 @@ function checkoutRequest(int $amount = 2_550): CheckoutRequest
         currency: 'GHS',
         email: 'anon-abc@voters.votelab.example',
         callbackUrl: 'https://votelab.test/payments/callback',
+        subaccountCode: 'ACCT_organizer01',
         metadata: ['vote_transaction_id' => 7],
     );
 }
 
-it('starts a Paystack checkout in pesewas and GHS with our reference', function (): void {
-    $history = fakePaystack([
-        new Response(200, [], json_encode([
-            'status' => true,
-            'data' => [
-                'authorization_url' => 'https://checkout.paystack.com/abc123',
-                'access_code' => 'abc123',
-                'reference' => 'VL_TESTREF123',
-            ],
-        ], JSON_THROW_ON_ERROR)),
+function paystackInitialized(): array
+{
+    return [
+        'status' => true,
+        'message' => 'Authorization URL created',
+        'data' => [
+            'authorization_url' => 'https://checkout.paystack.com/abc123',
+            'access_code' => 'abc123',
+            'reference' => 'VL_TESTREF123',
+        ],
+    ];
+}
+
+it('starts a Paystack checkout in pesewas that settles 100% to the organizer subaccount', function (): void {
+    config([
+        'payments.providers.paystack.secret_key' => TEST_PAYSTACK_SECRET,
+        'voting.settlement.bearer' => 'subaccount',
     ]);
+    Http::fake(['api.paystack.co/transaction/initialize' => Http::response(paystackInitialized())]);
 
     $session = app(PaystackPaymentGateway::class)->initialize(checkoutRequest(2_550));
 
     expect($session->authorizationUrl)
         ->toBe('https://checkout.paystack.com/abc123')
         ->and($session->reference)
-        ->toBe('VL_TESTREF123')
-        ->and($history)
-        ->toHaveCount(1);
+        ->toBe('VL_TESTREF123');
 
-    $sent = json_decode((string) $history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
-
-    expect((string) $history[0]['request']->getUri())
-        ->toEndWith('/transaction/initialize')
-        ->and($sent['amount'])
-        ->toBe(2_550)
-        ->and($sent['currency'])
-        ->toBe('GHS')
-        ->and($sent['reference'])
-        ->toBe('VL_TESTREF123')
-        ->and($sent['metadata'])
-        ->toBe(['vote_transaction_id' => 7]);
+    Http::assertSentCount(1);
+    Http::assertSent(
+        static fn(Request $request): bool => (
+            $request->url() === 'https://api.paystack.co/transaction/initialize'
+            && $request->method() === 'POST'
+            && $request->hasHeader('Authorization', 'Bearer ' . TEST_PAYSTACK_SECRET)
+            && $request->data() === [
+                'email' => 'anon-abc@voters.votelab.example',
+                'amount' => 2_550,
+                'currency' => 'GHS',
+                'reference' => 'VL_TESTREF123',
+                'callback_url' => 'https://votelab.test/payments/callback',
+                'metadata' => ['vote_transaction_id' => 7],
+                'subaccount' => 'ACCT_organizer01',
+                'transaction_charge' => 0,
+                'bearer' => 'subaccount',
+            ]
+        ),
+    );
 });
 
-it('converts odd pesewa amounts exactly', function (int $pesewas): void {
-    $history = fakePaystack([
-        new Response(200, [], json_encode([
-            'status' => true,
-            'data' => ['authorization_url' => 'https://checkout.paystack.com/x', 'access_code' => 'x'],
-        ], JSON_THROW_ON_ERROR)),
-    ]);
+it('sends amounts as exact integer pesewas', function (int $pesewas): void {
+    Http::fake(['*' => Http::response(paystackInitialized())]);
 
     app(PaystackPaymentGateway::class)->initialize(checkoutRequest($pesewas));
 
-    $sent = json_decode((string) $history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
-    expect($sent['amount'])->toBe($pesewas);
+    Http::assertSent(static fn(Request $request): bool => $request['amount'] === $pesewas);
 })->with([1, 29, 57, 1_015, 2_549, 99_999, 4_294_967_295]);
 
-it('wraps a refused checkout in a gateway exception', function (): void {
-    fakePaystack([new Response(400, [], json_encode([
-        'status' => false,
-        'message' => 'Invalid key',
-    ], JSON_THROW_ON_ERROR))]);
+it('wraps a refused checkout in a gateway exception', function (array $body, int $status): void {
+    Http::fake(['*' => Http::response($body, $status)]);
+
+    app(PaystackPaymentGateway::class)->initialize(checkoutRequest());
+})->with([
+    'bad request' => [['status' => false, 'message' => 'Invalid subaccount'], 400],
+    'status false on 200' => [['status' => false, 'message' => 'Duplicate Transaction Reference'], 200],
+    'no authorization url' => [['status' => true, 'data' => []], 200],
+    'server error' => [[], 500],
+])->throws(PaymentGatewayException::class);
+
+it('wraps an unreachable Paystack in a gateway exception', function (): void {
+    Http::fake(['*' => Http::failedConnection()]);
 
     app(PaystackPaymentGateway::class)->initialize(checkoutRequest());
 })->throws(PaymentGatewayException::class);
+
+it('rejects a checkout answered for a different reference', function (): void {
+    $body = paystackInitialized();
+    $body['data']['reference'] = 'VL_OTHER';
+    Http::fake(['*' => Http::response($body)]);
+
+    app(PaystackPaymentGateway::class)->initialize(checkoutRequest());
+})->throws(PaymentGatewayException::class);
+
+it('refuses a bearer setting Paystack would not understand', function (): void {
+    config(['voting.settlement.bearer' => 'platform']);
+    Http::fake(['*' => Http::response(paystackInitialized())]);
+
+    app(PaystackPaymentGateway::class)->initialize(checkoutRequest());
+})->throws(LogicException::class);
 
 it('reports a verified payment in pesewas', function (): void {
     fakePaystack([
