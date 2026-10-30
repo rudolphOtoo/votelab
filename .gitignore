@@ -1,0 +1,18 @@
+
+
+# >>> Conscience OS Isolation (Host Mode) >>>
+.conscience/
+.agents/
+.agents/memory/
+.agents/git-mode.json
+memory/episodic_log.md
+memory/KANBAN.md
+memory/feedback.md
+memory/graph/brain_data.js
+memory/neocortex/
+memory/wiki/
+INBOX.md
+AGENTS.md
+GEMINI.md
+GLOSSARY.md 
+# <<< Conscience OS Isolation (Host Mode) <<<
