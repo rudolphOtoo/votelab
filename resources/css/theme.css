@@ -1,0 +1,58 @@
+/* Serene Studio tokens (plan/SHARED_FOUNDATION.md §5). Components read these variables only. */
+:root {
+    --bg-canvas: #faf9f6;
+    --bg-surface: #ffffff;
+    --bg-subtle: #f3f1ec;
+    --bg-hover: #efece6;
+    --text-primary: #18181b;
+    --text-secondary: #71717a;
+    --text-tertiary: #a1a1aa;
+    --border-hairline: #e4e2dc;
+    --border-focused: #18181b;
+    --accent-brand: #18181b;
+    --accent-brand-fg: #ffffff;
+    --status-success: #15803d;
+    --status-warning: #b45309;
+    --status-danger: #b91c1c;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+}
+
+/* Auditorium projector theme (plan/DEV_A.md §3): deep basalt, high contrast. */
+[data-theme='stage'] {
+    --bg-canvas: #121316;
+    --bg-surface: #1b1d21;
+    --bg-subtle: #23262b;
+    --bg-hover: #2b2e34;
+    --text-primary: #f5f5f4;
+    --text-secondary: #a8a29e;
+    --text-tertiary: #78716c;
+    --border-hairline: #2e3137;
+    --border-focused: #f5f5f4;
+    --accent-brand: #fbbf24;
+    --accent-brand-fg: #121316;
+}
+
+/* By Sheaf.dev, wired to the tokens above. */
+@theme inline {
+    --color-canvas: var(--bg-canvas);
+    --color-surface: var(--bg-surface);
+    --color-subtle: var(--bg-subtle);
+    --color-hover: var(--bg-hover);
+    --color-ink: var(--text-primary);
+    --color-ink-secondary: var(--text-secondary);
+    --color-ink-tertiary: var(--text-tertiary);
+    --color-hairline: var(--border-hairline);
+    --color-focused: var(--border-focused);
+    --color-success: var(--status-success);
+    --color-warning: var(--status-warning);
+    --color-danger: var(--status-danger);
+
+    --color-primary: var(--accent-brand);
+    --color-primary-content: var(--accent-brand);
+    --color-primary-fg: var(--accent-brand-fg);
+
+    --radius-field: var(--radius-sm);
+    --radius-box: var(--radius-md);
+}
