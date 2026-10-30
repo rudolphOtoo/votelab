@@ -73,6 +73,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Payment and crediting audit trail (VoteLab and PayZephyr). Never log raw gateway payloads here.
+        'payments' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/payments.log'),
+            'level' => env('LOG_PAYMENTS_LEVEL', 'info'),
+            'max_files' => env('LOG_PAYMENTS_DAYS', 90),
+            'replace_placeholders' => true,
+        ],
+
         'monthly' => [
             'driver' => 'monthly',
             'path' => storage_path('logs/laravel.log'),

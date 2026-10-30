@@ -65,6 +65,41 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Paystack Processing Fee
+     |--------------------------------------------------------------------------
+     |
+     | Used to gross up paid votes so the organizer nets the full face value and
+     | the voter covers Paystack's fee. Ghana: 1.95% on local cards, mobile money
+     | and bank transfer, no cap, no flat fee (Paystack support, 2026-10-30).
+     | Amounts are pesewas; set the cap to null for no cap.
+     |
+     */
+
+    'paystack_fee' => [
+        'bps' => (int) env('VOTING_PAYSTACK_FEE_BPS', 195),
+        'flat' => (int) env('VOTING_PAYSTACK_FEE_FLAT', 0),
+        'cap' => filled(env('VOTING_PAYSTACK_FEE_CAP')) ? (int) env('VOTING_PAYSTACK_FEE_CAP') : null,
+    ],
+
+    /*
+     |--------------------------------------------------------------------------
+     | Payment References
+     |--------------------------------------------------------------------------
+     |
+     | Prefix for the references VoteLab sends to Paystack, and how long the
+     | crediting lock for one reference may be held and waited for (seconds).
+     |
+     */
+
+    'reference_prefix' => env('VOTING_REFERENCE_PREFIX', 'VL'),
+
+    'fulfilment_lock' => [
+        'seconds' => (int) env('VOTING_FULFILMENT_LOCK_SECONDS', 30),
+        'wait_seconds' => (int) env('VOTING_FULFILMENT_LOCK_WAIT_SECONDS', 5),
+    ],
+
+    /*
+     |--------------------------------------------------------------------------
      | Leaderboard Cache
      |--------------------------------------------------------------------------
      |
