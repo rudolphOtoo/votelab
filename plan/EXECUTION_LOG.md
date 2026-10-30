@@ -99,6 +99,7 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 | D-23 | `vote_records.vote_transaction_id` is **unique**, so the database rejects a second credit of the same payment as a last line of defence under D-06. | Defence in depth for exactly-once crediting. | SHARED §2 (Migration 7) |
 | D-24 | Sheaf components (`button, badge, card, input, modal, toast, avatar`) installed via `sheaf:init --with-livewire`, which uses Livewire's bundled Alpine. Plan tokens live in `resources/css/theme.css`, mapped to Tailwind and Sheaf variables, plus a `[data-theme=stage]` basalt palette. The skeleton's `CLAUDE.md`/`AGENTS.md` (Laravel Boost boilerplate) were not added. | Avoids a duplicate Alpine instance. Keeps one token source. | SHARED §5 |
 | D-25 | `predis/predis` added so Redis works without the `phpredis` extension (not installed locally). | Production cache and locks on Redis (README). | — |
+| D-26 | **Git is manual from Phase 2 onward.** The agent creates the phase branch locally and leaves its work uncommitted. It never commits, pushes, amends, rebases, resets, stashes, merges, or runs `gh pr`. Each phase ends with a Commit Plan (ordered commits, file lists, copy-paste commands, PR title and body) and the agent waits for a go-ahead before the next phase. If a phase starts before its parent merges, it stacks on the parent branch. | Revised execution prompt, 2026-10-30. Phase 1 was already committed and pushed under the earlier prompt (`30f9c8e` on `origin/feature/m0-shared-foundation`); it was left as is, because undoing a pushed commit would need a reset and a force-push. | Prompt §4 |
 | D-15 | Add `award_program_id` to `vote_transactions` and `vote_records`, index `vote_transactions(award_category_id, status)`, and use `scopeBindings()` for program → category → nominee routes. | Hot queries and event-scoped binding (prompt §6). | SHARED §2 |
 
 ---
@@ -106,6 +107,7 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 ## 3. Phase Notes
 
 ### Phase 1 — M0 Shared Foundation (`feature/m0-shared-foundation`) — done
+- Git: committed as `30f9c8e` and pushed before D-26. The PR into `dev` is still to be opened by the human: https://github.com/rudolphOtoo/votelab/compare/dev...feature/m0-shared-foundation?expand=1
 - Laravel 13.39, Livewire 4.4.8, Fortify 1.41, PayZephyr 5.1.1, simple-excel 3.11, heroicons 2.10, Pest 5.3.4, Larastan 3.13.2, Mago 1.59, Sheaf CLI 1.3.5, canvas-confetti 1.9.
 - Gates: `composer lint:check`, `composer types:check` (level 8, 0 errors), `php artisan test --parallel` (37 tests), `migrate:fresh --seed` all pass. CI workflow added.
 - Deferred: Fortify views and `User` 2FA/passkey wiring to Phase 4 (admin login). The `welcome` route stays until Phase 3 (B.4).
