@@ -1,0 +1,15 @@
+php-version = "8.4.0"
+
+[source]
+paths = ["app", "bootstrap/app.php", "config", "database", "routes", "tests"]
+includes = ["vendor"]
+excludes = ["bootstrap/cache", "storage"]
+
+[formatter]
+print-width = 120
+
+[linter]
+integrations = ["laravel", "pest", "phpunit"]
+
+[linter.rules]
+literal-named-argument = { enabled = false }
