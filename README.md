@@ -54,6 +54,24 @@ composer check        # all of the above
 - Pricing is snapshotted on the pending `vote_transactions` row at checkout. Fulfilment credits the stored
   quantity and never recalculates.
 
+## Public voting
+
+| URL | Page |
+| :--- | :--- |
+| `/{organization}/{program}` | Program landing: countdown and categories |
+| `/{organization}/{program}/categories/{category}` | Nominees, with live standings while results are public |
+| `/{organization}/{program}/{nominee-code}` | Deep link: the category with that nominee's vote drawer open |
+
+- **Hidden results** (`embargoed`, `closed`): vote counts are never loaded into the page, its Livewire state or poll
+  responses. Standings poll every 3 s (only while visible) from a short-lived cache refreshed when votes land.
+- **Free votes:** each category's `free_vote_limit` per voter per day (calendar day, Ghana time), enforced by a unique
+  key in `free_vote_claims`. A voter is HMAC(IP | user agent | device cookie); only keyed hashes are stored.
+  Rejections are logged to `storage/logs/voting-*.log` for organizer review.
+- **Rate limits** (per minute, `VOTING_RATE_*`): checkout per voter/network/nominee, free votes per voter/network,
+  public pages per network. Network limits are loose because campuses share one IP.
+- Organization slugs must not clash with fixed paths (`api`, `payments`, `livewire-*`, `up`, Fortify routes);
+  fixed routes always win.
+
 ## Operations
 
 ### Paystack

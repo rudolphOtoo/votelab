@@ -53,17 +53,17 @@ Task IDs are derived here because the plan has none: `M0.x` = Shared Foundation,
 | A.8 | `StageLeaderboard` (`/stage/{program:slug}`), reveal + confetti | DEV_A §3 | todo |
 | A.9 | Policies: AwardProgram, AwardCategory, Nominee | DEV_A §4 | todo |
 | A.10 | Tests `tests/Feature/Admin/*` | DEV_A §Tests | todo |
-| B.1 | `CastFreeVoteAction` | DEV_B §1 | todo |
+| B.1 | `CastFreeVoteAction` | DEV_B §1 | done |
 | B.2 | `InitiatePaidVoteOrderAction` | DEV_B §1 | done |
 | B.3 | `FulfillPaidVoteOrderAction` (idempotent crediting) | DEV_B §1 | done |
-| B.4 | Livewire `ProgramLanding` | DEV_B §2 | todo |
-| B.5 | Livewire `CategoryShow` (embargo-safe) | DEV_B §2 | todo |
-| B.6 | Livewire `VoteDrawer` | DEV_B §2 | todo |
+| B.4 | Livewire `ProgramLanding` | DEV_B §2 | done |
+| B.5 | Livewire `CategoryShow` (embargo-safe) | DEV_B §2 | done |
+| B.6 | Livewire `VoteDrawer` | DEV_B §2 | done |
 | B.7 | `PaymentGateway` contract + PayZephyr/Paystack adapter + fake | DEV_B §3 / prompt §6 | done |
 | B.8 | `PaystackFeeCalculator` | DEV_B §3 | done |
 | B.9 | `PaystackWebhookController` + callback controller + queued job | DEV_B §3 / prompt §5.4 | done |
-| B.10 | `VoteFingerprintService` + rate limiters | DEV_B §3 | todo |
-| B.11 | Tests `tests/Feature/Voting/*` + concurrency test | DEV_B §Tests | todo |
+| B.10 | `VoteFingerprintService` + rate limiters | DEV_B §3 | done |
+| B.11 | Tests `tests/Feature/Voting/*` + concurrency test | DEV_B §Tests | in-progress |
 | B.12 | K6 load scripts `tests/load/` + README | prompt §6 | todo |
 
 Phase mapping (approved, D-17):
@@ -122,6 +122,18 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 | D-46 | The verified-payment decision moved into a pure `DecidePaymentSettlement` returning a `SettlementDecision` (credit / wait / settle-as-status). `FulfillPaidVoteOrderAction` only locks, verifies, decides and applies. | Keeps each class under Mago's complexity limit, and the rules are readable in one place. | DEV_B B.3 |
 | D-47 | `Tests\TestCase` calls `withoutVite()`, so view tests don't need `npm run build`. Found by checking each commit in a clean export. | Tests mustn't depend on build artifacts. | — |
 | D-48 | Locked decisions from the continuation prompt are recorded as: L-1 = D-26; L-2 = stacking rule (Phase 3 branches from `feature/phase-2-payments` while m0 and Phase 2 are unmerged); L-3 = D-41/D-44; L-4 = D-43; L-5 = D-42; L-6 = D-27/D-38; L-7 = D-05/D-23; L-8 = D-44. | Continuation prompt §3. | All |
+| D-49 | **Public routes:** `/{organization:slug}/{awardProgram:slug}`, `/…/categories/{category:slug}` and `/…/{nominee:nominee_code}`, all with `scopeBindings()`. Parameter names match the relations Laravel resolves (`awardPrograms`, `categories`, `nominees`). Categories sit under a literal `categories/` segment so they can't be confused with nominee codes. Slugs and codes are regex-constrained. The group is registered last, so fixed paths always win. Components also re-check organization → program → category ownership in `mount()`. The nominee deep link reuses `CategoryShow` with that nominee's drawer open, so there is no separate nominee page. | Prompt; DEV_B §2. | DEV_B B.4–B.6 |
+| D-50 | `/` renders the home program's landing page in dedicated mode (`DedicatedSite`), and the default welcome page otherwise. The plan defines no multi-tenant portal index. | SHARED §4. | SHARED §4 |
+| D-51 | **Free-vote limits are enforced in the database:** `free_vote_claims` has a unique key on (category, voter_key, period, slot), with slots running from 1 to `free_vote_limit`. Two racing requests can't both take the last slot; the loser is rejected. Deviation: the plan's rolling 24 h `Cache::has` window becomes a **calendar day** (app timezone, UTC = Ghana time), because a rolling window can't be expressed as a unique key. The plan's `free_vote_limit` (default 1) is honoured. | Continuation §6 "enforce in the database". | DEV_B B.1, B.10 |
+| D-52 | **Fingerprint:** `voter_key = HMAC-SHA256(ip | user agent | vl_voter cookie)`, and `ip_hash = HMAC-SHA256(ip)`, keyed with `VOTING_FINGERPRINT_KEY` or else `APP_KEY`. The plan's plain SHA256 is keyed so IPs can't be brute-forced back. `vl_voter` is a random UUID (1 year, httpOnly, SameSite=Lax) set by `EnsureVoterCookie`; without it the key drops the cookie part, which is stricter. Known limit: clearing cookies gives a new voter key. That is bounded by the per-network rate limit. A bot challenge (Turnstile) isn't in the plan, so it's a follow-up. | DEV_B §3; Never-list (no raw IPs). | DEV_B B.10 |
+| D-53 | **Rate limits:** named limiters in `AppServiceProvider`, with values in `voting.rate_limits`. `vote-checkout` is per voter (5), network (30) and nominee (300) per minute; `free-vote` is per voter (10) and network (60); `public-pages` is per network (120) as route middleware. Livewire actions apply limiters through `App\Support\Throttle`, because they don't pass through route middleware; it checks every limit before counting any. Network limits are loose because campuses share one IP. | Prompt §3. | DEV_B B.10 |
+| D-54 | **Idempotent checkout start (`StartVoteCheckoutAction`):** resubmitting the identical order (voter, nominee, quantity, email) within 10 min returns the authorization URL already issued. Otherwise rate limits apply, and one 15 s lock per voter and nominee stops a concurrent double start. Logic lives in an action, keeping the component thin. | Continuation §6 double-submit. | DEV_B B.6 |
+| D-55 | **Hidden results:** counts are read only from `LeaderboardCache`, and only while `isLeaderboardPublic()` (open or revealed). Embargoed *and* closed categories show none. Counts are never public properties; tests check HTML, attributes, the Livewire snapshot and a poll response, including a category that goes blind mid-session. Polling is `wire:poll.3s.visible` while results are public and 15 s otherwise (to notice status changes). | §5.10, D-11. | DEV_B B.5 |
+| D-56 | **Leaderboard cache:** `[nominee_id => votes]` from the derived `nominees.votes_count` (one indexed read, no aggregates), cached for `VOTING_LEADERBOARD_CACHE_SECONDS`. `RefreshLeaderboardCache` (auto-discovered) refreshes it on `VotesCredited` and on the new after-commit `FreeVoteCast`. | Prompt §3. | DEV_B B.5 |
+| D-57 | `Model::preventLazyLoading()` outside production. Required `BelongsTo` relations are declared as non-null `@property-read` on the models, because Larastan otherwise types them nullable (their FKs are NOT NULL). | Continuation §7 (no N+1). | — |
+| D-58 | No supporter names and no anonymous/name toggle: the repo plan has no supporter feature (the continuation checklist item doesn't apply). The drawer offers only an optional receipt email (D-35). | Plan scope. | DEV_B B.6 |
+| D-59 | The drawer and cards are built from token-based Tailwind markup rather than Sheaf's `modal`/`card`, which hardcode `white`/`neutral` colours instead of the theme tokens. They follow the plan's motion rules: bottom-sheet `translateY` with 260 ms `cubic-bezier(0.32,0.72,0,1)`, `scale(0.92)` steppers, `tabular-nums`, `scaleX` bars, reduced-motion respected. The stepper is one `adjust(int)` action that only accepts −1, +1 and the chips. | SHARED §5, DEV_B UX rules. | DEV_B B.6 |
+| D-60 | **D-26 superseded for Phases 3–5.** The agent now commits locally, one plan task (or logical change) per commit, after tests, PHPStan and Mago pass. It still never pushes, merges, rebases or force-pushes without the owner's go-ahead. | Owner's "bring the platform to life" prompt, 2026-11-05 (Stage 0 and rule 9). | Prompt §4 |
 | D-15 | Add `award_program_id` to `vote_transactions` and `vote_records`, index `vote_transactions(award_category_id, status)`, and use `scopeBindings()` for program → category → nominee routes. | Hot queries and event-scoped binding (prompt §6). | SHARED §2 |
 
 ---
@@ -248,6 +260,71 @@ Hardening (continuation prompt §4):
 - Revenue totals per program for invoicing (D-45). README: Supervisor/Horizon + cron.
 
 Verify in Paystack test mode before launch: 100%-to-subaccount settlement and fee rounding (D-41, D-42).
+```
+
+### Phase 3 — Public portal & free votes (`feature/phase-3-voting-portal`, stacked on `feature/phase-2-payments`) — done, committed locally 2026-11-05 (not pushed, D-60)
+- **Base:** `feature/phase-2-payments` @ `829a917`; neither it nor m0 is in `dev` yet (L-2).
+- **Built:** B.4 `ProgramLanding`, B.5 `CategoryShow` (hidden-results safe, cached polling), B.6 `VoteDrawer` (L-8 breakdown, stepper and chips, idempotent checkout, free vote tab), B.1 `CastFreeVoteAction`, B.10 `VoteFingerprintService` + `EnsureVoterCookie` + rate limiters, the leaderboard cache and listener, and deep links with scoped bindings.
+- **Gates:** `composer lint:check`, `composer types:check` (0 errors), `php artisan test --parallel` (215 tests), `migrate:fresh --seed`, `npm run build`. Each planned commit was also checked alone in a clean `git archive` export (tests, PHPStan and Mago pass).
+- **Not verified:** the pages have not been viewed in a real browser or on a phone. Tests check rendered HTML and behaviour only.
+- **Follow-ups:**
+  - (1) Bot challenge (Turnstile) for free votes, which needs a plan decision.
+  - (2) Reserved organization slugs (`api`, `payments`, `up`, `livewire-*`, Fortify paths), validated when organizations are created (Phase 4).
+  - (3) Livewire update requests (`/livewire-*/update`, including polls) are not route-throttled; they are cheap because they read the cache.
+  - (4) Visual and device QA on slow 3G.
+
+#### Commit Plan (Phase 3)
+
+```bash
+git checkout feature/phase-3-voting-portal
+
+# 1. Free votes: DB-enforced daily limits, keyed fingerprints, device cookie
+git add database/migrations/2026_11_05_100001_create_free_vote_claims_table.php app/Models/FreeVoteClaim.php app/Models/AwardCategory.php app/Models/AwardProgram.php app/Models/Nominee.php app/Models/VoteRecord.php app/Models/VoteTransaction.php database/seeders/DemoProgramSeeder.php app/Services/Security/VoterIdentity.php app/Services/Security/VoteFingerprintService.php app/Http/Middleware/EnsureVoterCookie.php app/Actions/Voting/CastFreeVoteAction.php app/Exceptions/Voting/FreeVoteUnavailableException.php app/Events/FreeVoteCast.php config/voting.php config/logging.php .env.example tests/Feature/Voting/FreeVoteRateLimitTest.php tests/Feature/Security/VoteFingerprintServiceTest.php
+git commit -m "feat(voting): cast free votes with database-enforced daily limits and keyed voter fingerprints [B.1][B.10]"
+
+# 2. Rate limiting, idempotent checkout start, leaderboard cache
+git add app/Providers/AppServiceProvider.php app/Support/Throttle.php app/Support/VoteKeys.php app/Support/LeaderboardCache.php app/Listeners/RefreshLeaderboardCache.php app/Actions/Voting/StartVoteCheckoutAction.php app/Exceptions/Voting/CheckoutUnavailableException.php tests/Feature/Voting/LeaderboardCacheTest.php
+git commit -m "feat(voting): add vote rate limiters, idempotent checkout start and a refreshed leaderboard cache [B.6][B.10]"
+
+# 3. Public portal: landing, category, vote drawer, deep links
+git add app/Livewire/Public/ resources/views/livewire/public/ resources/views/components/public/status-pill.blade.php resources/views/public/home.blade.php routes/web.php tests/Feature/Public/ tests/Feature/Voting/EmbargoDataLeakTest.php
+git commit -m "feat(portal): add program landing, category page and vote drawer with scoped deep links [B.4][B.5][B.6]"
+
+# 4. Docs
+git add README.md plan/EXECUTION_LOG.md
+git commit -m "docs: document the public portal, free-vote policy and Phase 3 decisions"
+
+git push -u origin feature/phase-3-voting-portal
+```
+
+Secrets check: no `.env`, keys or build output in the diff. `.env.example` adds a blank `VOTING_FINGERPRINT_KEY` and rate-limit numbers only.
+
+#### PR (Phase 3)
+
+**Title:** `feat(portal): public voting portal, vote drawer and free votes [B.1][B.4][B.5][B.6][B.10]`
+
+**Body:**
+
+```
+Base: `feature/phase-2-payments` until it merges, then retarget to `dev`.
+
+Implements Phase 3 (plan/DEV_B.md public portal + free votes):
+- Deep links with scopeBindings(): /{org}/{program}, /{org}/{program}/categories/{category}, /{org}/{program}/{nominee-code} (drawer open). Unpublished programs and draft categories are 404s.
+- VoteDrawer: L-8 breakdown (subtotal + Paystack fee = total, from QuotePaidVotesAction), stepper and +10/25/50/100 chips, optional receipt email, idempotent checkout start (StartVoteCheckoutAction), free-vote tab.
+- CastFreeVoteAction: daily per-category allowance enforced by a unique (category, voter, day, slot) key in free_vote_claims; keyed HMAC fingerprints (no raw IPs/cookies stored).
+- Rate limiters (checkout, free vote, public pages) in AppServiceProvider; leaderboard cache refreshed on VotesCredited / FreeVoteCast.
+- Hidden results enforced server-side: no counts in HTML, Livewire snapshot or polls for embargoed/closed categories (tested).
+
+Decisions: D-49 to D-59 in plan/EXECUTION_LOG.md. Deviation: free-vote window is a calendar day, not rolling 24 h (D-51).
+
+How to test:
+composer check
+php artisan migrate:fresh --seed && composer dev
+# open /accra-campus-creatives/campus-excellence-awards-2026 and /accra-campus-creatives/campus-excellence-awards-2026/C01-02
+
+Follow-ups: Turnstile for free votes (needs a plan decision), reserved org slugs (Phase 4), device/3G QA.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 ## 4. Open Questions (blockers)
