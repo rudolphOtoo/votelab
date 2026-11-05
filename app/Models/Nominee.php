@@ -14,6 +14,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * votes_count is a derived counter. It is not mass assignable: it only changes
  * through atomic increments when votes are credited, or a rebuild from vote_records.
+ *
+ * @property-read Organization $organization
+ * @property-read AwardProgram $awardProgram
+ * @property-read AwardCategory $awardCategory
  */
 #[Fillable([
     'organization_id',

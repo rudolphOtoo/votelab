@@ -13,6 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * The vote ledger: one row per free vote or credited paid transaction.
+ *
+ * @property-read AwardCategory $awardCategory
+ * @property-read Nominee $nominee
  */
 #[WithoutTimestamps]
 #[Fillable([

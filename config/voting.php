@@ -117,6 +117,40 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Voter Fingerprints
+     |--------------------------------------------------------------------------
+     |
+     | Free-vote limits key on HMAC-SHA256(ip | user agent | device cookie) and
+     | the ledger stores HMAC-SHA256(ip). Raw IPs and cookies are never stored.
+     | The key defaults to APP_KEY; rotating it resets every free-vote allowance.
+     |
+     */
+
+    'fingerprint_key' => env('VOTING_FINGERPRINT_KEY'),
+
+    'voter_cookie' => env('VOTING_VOTER_COOKIE', 'vl_voter'),
+
+    /*
+     |--------------------------------------------------------------------------
+     | Rate Limits (per minute)
+     |--------------------------------------------------------------------------
+     |
+     | Checked in AppServiceProvider's named limiters. Per-IP limits are loose on
+     | purpose: campus networks put many voters behind one address.
+     |
+     */
+
+    'rate_limits' => [
+        'checkout_per_voter' => (int) env('VOTING_RATE_CHECKOUT_PER_VOTER', 5),
+        'checkout_per_ip' => (int) env('VOTING_RATE_CHECKOUT_PER_IP', 30),
+        'checkout_per_nominee' => (int) env('VOTING_RATE_CHECKOUT_PER_NOMINEE', 300),
+        'free_vote_per_voter' => (int) env('VOTING_RATE_FREE_VOTE_PER_VOTER', 10),
+        'free_vote_per_ip' => (int) env('VOTING_RATE_FREE_VOTE_PER_IP', 60),
+        'public_pages_per_ip' => (int) env('VOTING_RATE_PUBLIC_PAGES_PER_IP', 120),
+    ],
+
+    /*
+     |--------------------------------------------------------------------------
      | Leaderboard Cache
      |--------------------------------------------------------------------------
      |

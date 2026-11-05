@@ -12,6 +12,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * Required relations (NOT NULL foreign keys):
+ *
+ * @property-read Organization $organization
+ * @property-read AwardProgram $awardProgram
+ * @property-read AwardCategory $awardCategory
+ * @property-read Nominee $nominee
+ */
 #[Fillable([
     'organization_id',
     'award_program_id',

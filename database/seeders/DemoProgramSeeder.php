@@ -160,7 +160,7 @@ final class DemoProgramSeeder extends Seeder
                         'net_amount' => $quote->subtotal,
                         'processing_fee_pesewas' => $quote->processingFee,
                         'gross_amount' => $quote->total,
-                        'settlement_subaccount_code' => $nominee->organization?->paystack_subaccount_code,
+                        'settlement_subaccount_code' => $nominee->organization->paystack_subaccount_code,
                         'verified_at' => now(),
                         'credited_at' => now(),
                     ]);

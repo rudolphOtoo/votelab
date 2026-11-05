@@ -12,6 +12,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * Required relations (NOT NULL foreign keys):
+ *
+ * @property-read Organization $organization
+ */
 #[Fillable([
     'organization_id',
     'title',

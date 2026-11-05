@@ -73,6 +73,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Free-vote decisions, including rejected attempts for organizer review. Hashed voter keys only.
+        'voting' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/voting.log'),
+            'level' => env('LOG_VOTING_LEVEL', 'info'),
+            'max_files' => env('LOG_VOTING_DAYS', 30),
+            'replace_placeholders' => true,
+        ],
+
         // Payment and crediting audit trail (VoteLab and PayZephyr). Never log raw gateway payloads here.
         'payments' => [
             'driver' => 'daily',
