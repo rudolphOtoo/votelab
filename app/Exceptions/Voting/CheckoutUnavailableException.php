@@ -42,6 +42,16 @@ final class CheckoutUnavailableException extends RuntimeException
         return new self('Enter a valid email address, or leave it blank.');
     }
 
+    public static function tooManyAttempts(int $retryAfterSeconds): self
+    {
+        return new self("Too many checkout attempts. Please try again in {$retryAfterSeconds} seconds.");
+    }
+
+    public static function alreadyStarting(): self
+    {
+        return new self('We are already starting your checkout. One moment…');
+    }
+
     public static function gatewayUnavailable(Throwable $previous): self
     {
         return new self('We could not reach the payment provider. Please try again.', previous: $previous);

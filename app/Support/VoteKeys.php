@@ -17,4 +17,28 @@ final class VoteKeys
     {
         return "voting:fulfil:{$reference}";
     }
+
+    /**
+     * Cached [nominee_id => votes] standings for one category, read by public and stage polling.
+     */
+    public static function leaderboard(int $awardCategoryId): string
+    {
+        return "voting:leaderboard:{$awardCategoryId}";
+    }
+
+    /**
+     * Held while one voter starts a checkout for one nominee, so a double submit cannot start two.
+     */
+    public static function checkoutLock(string $voterKey, int $nomineeId): string
+    {
+        return "voting:checkout-lock:{$voterKey}:{$nomineeId}";
+    }
+
+    /**
+     * The checkout a voter just started for one order, reused if the same order is submitted again.
+     */
+    public static function recentCheckout(string $voterKey, int $nomineeId, int $quantity, string $email): string
+    {
+        return 'voting:checkout:' . hash('sha256', "{$voterKey}|{$nomineeId}|{$quantity}|{$email}");
+    }
 }
