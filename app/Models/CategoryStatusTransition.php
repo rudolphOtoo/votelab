@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['award_category_id', 'user_id', 'from_status', 'to_status'])]
+#[Fillable(['award_category_id', 'user_id', 'from_status', 'to_status', 'reason'])]
 final class CategoryStatusTransition extends Model
 {
     public const null UPDATED_AT = null;

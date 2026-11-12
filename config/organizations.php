@@ -36,6 +36,23 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Nominee photos
+     |--------------------------------------------------------------------------
+     |
+     | Uploads are checked by content (JPEG, PNG or WebP), centre-cropped to
+     | 4:5 and stored as WebP at this size on a public disk.
+     |
+     */
+
+    'nominee_photos' => [
+        'disk' => env('NOMINEE_PHOTO_DISK', 'public'),
+        'max_kilobytes' => 5_120,
+        'width' => 800,
+        'height' => 1_000,
+    ],
+
+    /*
+     |--------------------------------------------------------------------------
      | Reserved slugs
      |--------------------------------------------------------------------------
      |

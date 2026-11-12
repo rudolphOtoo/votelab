@@ -15,8 +15,7 @@ use App\Policies\Concerns\ChecksPermissionMatrix;
 
 /**
  * Nominee abilities; the phase is the nominee's category's. A nominee with any vote record or
- * transaction is never deleted (archive instead). Archive's "already archived" check arrives with the
- * archive column (Stage 2c).
+ * transaction is never deleted (archive instead); an archived nominee can't be archived again.
  */
 final class NomineePolicy
 {
@@ -77,7 +76,7 @@ final class NomineePolicy
 
     public function archive(User $user, Nominee $nominee): bool
     {
-        return $this->inPhase($user, $nominee, NomineeAbility::NomineeArchive);
+        return !$nominee->isArchived() && $this->inPhase($user, $nominee, NomineeAbility::NomineeArchive);
     }
 
     public function delete(User $user, Nominee $nominee): bool

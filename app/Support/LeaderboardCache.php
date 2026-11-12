@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Enums\CategoryStatus;
 use App\Models\AwardCategory;
-use App\Models\Nominee;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 
@@ -51,7 +49,7 @@ final class LeaderboardCache
     {
         $awardCategoryId = $category->id;
 
-        if (!self::resultsArePublic($awardCategoryId)) {
+        if (!LeaderboardSource::resultsArePublic($awardCategoryId)) {
             return null;
         }
 
@@ -61,7 +59,7 @@ final class LeaderboardCache
             return self::buildMissing($awardCategoryId);
         }
 
-        if (self::isFresh($awardCategoryId)) {
+        if (Cache::has(VoteKeys::leaderboardFresh($awardCategoryId))) {
             return $copy;
         }
 
@@ -75,6 +73,27 @@ final class LeaderboardCache
     public static function forget(int $awardCategoryId): void
     {
         Cache::forget(VoteKeys::leaderboardFresh($awardCategoryId));
+    }
+
+    /**
+     * Drop the stored copy and the fresh marker, so nothing built under a previous status can be served
+     * (D-68: status changes and reveals).
+     */
+    public static function purge(int $awardCategoryId): void
+    {
+        Cache::forget(VoteKeys::leaderboard($awardCategoryId));
+        Cache::forget(VoteKeys::leaderboardFresh($awardCategoryId));
+    }
+
+    /**
+     * Build the standings now, so the first visitors after results go public hit a fresh copy instead of
+     * the cold path (D-69). Does nothing while results are hidden.
+     */
+    public static function warm(int $awardCategoryId): void
+    {
+        if (LeaderboardSource::resultsArePublic($awardCategoryId)) {
+            self::rebuild($awardCategoryId);
+        }
     }
 
     /**
@@ -104,7 +123,7 @@ final class LeaderboardCache
 
         try {
             // Another request may have finished a rebuild between our read and taking the lock.
-            if (self::isFresh($awardCategoryId)) {
+            if (Cache::has(VoteKeys::leaderboardFresh($awardCategoryId))) {
                 return self::copy($awardCategoryId) ?? self::rebuild($awardCategoryId);
             }
 
@@ -129,28 +148,8 @@ final class LeaderboardCache
             );
         } catch (LockTimeoutException) {
             // No copy to serve and the rebuild is stuck: read the counter directly so the page still works.
-            return self::load($awardCategoryId);
+            return LeaderboardSource::standings($awardCategoryId);
         }
-    }
-
-    /**
-     * The gate: the category's status as stored now, not as the caller last loaded it. A missing
-     * category counts as hidden.
-     */
-    private static function resultsArePublic(int $awardCategoryId): bool
-    {
-        $status = AwardCategory::query()->whereKey($awardCategoryId)->value('status');
-
-        if (is_string($status)) {
-            $status = CategoryStatus::tryFrom($status);
-        }
-
-        return $status instanceof CategoryStatus && $status->isLeaderboardPublic();
-    }
-
-    private static function isFresh(int $awardCategoryId): bool
-    {
-        return Cache::has(VoteKeys::leaderboardFresh($awardCategoryId));
     }
 
     /**
@@ -169,7 +168,7 @@ final class LeaderboardCache
      */
     private static function rebuild(int $awardCategoryId): array
     {
-        $standings = self::load($awardCategoryId);
+        $standings = LeaderboardSource::standings($awardCategoryId);
 
         Cache::put(VoteKeys::leaderboard($awardCategoryId), $standings, self::STALE_SECONDS);
         Cache::put(
@@ -179,17 +178,5 @@ final class LeaderboardCache
         );
 
         return $standings;
-    }
-
-    /**
-     * @return array<int, int>
-     */
-    private static function load(int $awardCategoryId): array
-    {
-        return Nominee::query()
-            ->where('award_category_id', $awardCategoryId)
-            ->pluck('votes_count', 'id')
-            ->map(static fn(mixed $votes): int => (int) $votes)
-            ->all();
     }
 }
