@@ -10,16 +10,19 @@ use App\Support\LeaderboardCache;
 
 /**
  * Keeps polled standings current as soon as votes land, paid or free.
+ *
+ * It only invalidates: rebuilding here would run one query per vote, while the next poll's
+ * read rebuilds once under LeaderboardCache's lock however many votes landed in between.
  */
 final class RefreshLeaderboardCache
 {
     public function handleVotesCredited(VotesCredited $event): void
     {
-        LeaderboardCache::refresh($event->transaction->award_category_id);
+        LeaderboardCache::forget($event->transaction->award_category_id);
     }
 
     public function handleFreeVoteCast(FreeVoteCast $event): void
     {
-        LeaderboardCache::refresh($event->voteRecord->award_category_id);
+        LeaderboardCache::forget($event->voteRecord->award_category_id);
     }
 }

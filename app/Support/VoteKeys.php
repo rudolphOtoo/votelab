@@ -27,6 +27,14 @@ final class VoteKeys
     }
 
     /**
+     * Held while one request rebuilds a category's missing standings, so concurrent misses rebuild once.
+     */
+    public static function leaderboardRebuildLock(int $awardCategoryId): string
+    {
+        return "voting:leaderboard-rebuild:{$awardCategoryId}";
+    }
+
+    /**
      * Held while one voter starts a checkout for one nominee, so a double submit cannot start two.
      */
     public static function checkoutLock(string $voterKey, int $nomineeId): string
