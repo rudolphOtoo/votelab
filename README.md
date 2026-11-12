@@ -63,7 +63,7 @@ composer check        # all of the above
 | `/{organization}/{program}/{nominee-code}` | Deep link: the category with that nominee's vote drawer open |
 
 - **Hidden results** (`embargoed`, `closed`): vote counts are never loaded into the page, its Livewire state or poll
-  responses. Standings poll every 3 s (only while visible) from a short-lived cache refreshed when votes land.
+  responses. Standings poll every 3 s (only while visible) from a short-lived cache that is cleared when votes land and rebuilt once, under a lock, by the next poll.
 - **Free votes:** each category's `free_vote_limit` per voter per day (calendar day, Ghana time), enforced by a unique
   key in `free_vote_claims`. A voter is HMAC(IP | user agent | device cookie); only keyed hashes are stored.
   Rejections are logged to `storage/logs/voting-*.log` for organizer review.
@@ -118,9 +118,28 @@ Add the Laravel scheduler to cron:
 - Payment fulfilment uses atomic cache locks. In production use Redis (`CACHE_STORE=redis`,
   `REDIS_CLIENT=predis`, or `phpredis` if the extension is installed) with AOF persistence and
   `maxmemory-policy noeviction`, so lock keys are never evicted.
+- **Trusted proxies:** set `TRUSTED_PROXIES` to your load balancer's address or Cloudflare's published
+  ranges so client IPs (used by voter fingerprints and rate limits) come from `X-Forwarded-For`. Leave it
+  empty when the app is reached directly. See `.env.example` before using `*`.
 - Payment decisions are logged to `storage/logs/payments-*.log` (kept 90 days), with ids, amounts and
   statuses only, never raw Paystack payloads or voter emails.
 - **Close grace window:** `VOTING_CLOSE_GRACE_MINUTES` (default 5) is how long a closed category still
   credits payments that started before it closed. Later payments are recorded as `paid_uncredited` for refund.
 
 All voting settings live in [`config/voting.php`](config/voting.php) and are listed in `.env.example`.
+
+## Production checklist
+
+Stage 3 (hardening) completes this list; the items below are already required.
+
+- [ ] **Trusted proxies (`TRUSTED_PROXIES`).** Behind a load balancer, set its private address or subnet.
+  Behind Cloudflare, set Cloudflare's published IP ranges, comma-separated:
+  - Source: <https://www.cloudflare.com/ips/> (plain lists at <https://www.cloudflare.com/ips-v4> and
+    <https://www.cloudflare.com/ips-v6>, or the API at `https://api.cloudflare.com/client/v4/ips`).
+  - **Review them periodically:** Cloudflare adds and retires ranges. Check at least quarterly and before
+    each event, and compare against the API's `etag` to spot changes. A missing range makes
+    Cloudflare's own address look like the voter, so everyone behind it shares one rate limit.
+  - Don't use `*` behind Cloudflare: it lets a voter forge their IP via `X-Forwarded-For`.
+- [ ] **Paystack webhook** registered at `https://<host>/api/webhooks/paystack` (see [Paystack](#paystack)).
+- [ ] **Queue worker** and **scheduler** running (see above).
+- [ ] **Cache and locks on Redis** with `noeviction` (see [Cache, locks and logs](#cache-locks-and-logs)).
