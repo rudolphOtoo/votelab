@@ -106,3 +106,33 @@ function factoryPassword(): string
 {
     return 'password';
 }
+
+/**
+ * Send a real request to Livewire's update endpoint, as the browser does after a page load, calling one
+ * method on the first component in the page HTML. Unlike Livewire::test(), this goes through the update
+ * route, so Livewire re-applies the page's persistent middleware.
+ *
+ * @param  array<string, mixed>  $updates  Property values to set before the call.
+ * @param  list<mixed>  $params
+ */
+function livewireCall(
+    string $pageHtml,
+    string $method,
+    array $updates = [],
+    array $params = [],
+): Illuminate\Testing\TestResponse {
+    preg_match('/wire:snapshot="([^"]+)"/', $pageHtml, $match);
+    expect($match)->not->toBeEmpty('No Livewire component found in the page.');
+
+    $snapshot = htmlspecialchars_decode($match[1], ENT_QUOTES);
+
+    return test()->withHeaders(['X-Livewire' => '1'])->postJson(app('livewire')->getUpdateUri(), [
+        'components' => [
+            [
+                'snapshot' => $snapshot,
+                'updates' => $updates,
+                'calls' => [['path' => '', 'method' => $method, 'params' => $params]],
+            ],
+        ],
+    ]);
+}

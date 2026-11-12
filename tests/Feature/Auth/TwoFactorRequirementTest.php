@@ -73,3 +73,52 @@ it('starts the grace period at first sign-in', function (): void {
     expect($user->fresh()?->first_signed_in_at?->isToday())->toBeTrue();
     $this->get('/dashboard')->assertOk();
 });
+
+it('refuses Livewire actions from an owner whose grace period ended after the page loaded', function (): void {
+    Illuminate\Support\Facades\Mail::fake();
+    $owner = withoutTwoFactor(OrganizationRole::Owner, daysAgo: 6);
+    $organization = $owner->organizations()->firstOrFail();
+    $page = $this
+        ->actingAs($owner)
+        ->get("/dashboard/organizations/{$organization->slug}/members")
+        ->assertOk()
+        ->getContent();
+
+    // The grace period runs out while the page is still open.
+    $owner->forceFill(['first_signed_in_at' => now()->subDays(8)])->save();
+
+    livewireCall($page, 'invite', [
+        'email' => 'late@example.com',
+        'role' => 'staff',
+    ])->assertRedirect('/dashboard/security');
+
+    expect(App\Models\OrganizationInvitation::query()->count())->toBe(0);
+    Illuminate\Support\Facades\Mail::assertNothingQueued();
+});
+
+it('runs the same Livewire action while the grace period lasts (control for the test above)', function (): void {
+    Illuminate\Support\Facades\Mail::fake();
+    $owner = withoutTwoFactor(OrganizationRole::Owner, daysAgo: 6);
+    $organization = $owner->organizations()->firstOrFail();
+    $page = $this
+        ->actingAs($owner)
+        ->get("/dashboard/organizations/{$organization->slug}/members")
+        ->assertOk()
+        ->getContent();
+
+    livewireCall($page, 'invite', ['email' => 'ontime@example.com', 'role' => 'staff'])->assertOk();
+
+    expect(App\Models\OrganizationInvitation::query()->sole()->email)->toBe('ontime@example.com');
+});
+
+it('refuses the dashboard switcher action for an admin past the grace period', function (): void {
+    $admin = withoutTwoFactor(OrganizationRole::Admin, daysAgo: 6);
+    $second = Organization::factory()->create();
+    $second->addMember($admin, OrganizationRole::Admin);
+    $page = $this->actingAs($admin)->get('/dashboard')->assertOk()->getContent();
+
+    $admin->forceFill(['first_signed_in_at' => now()->subDays(8)])->save();
+
+    livewireCall($page, 'switchOrganization', params: [$second->id])->assertRedirect('/dashboard/security');
+    expect(session(App\Support\CurrentOrganization::SESSION_KEY))->toBeNull();
+});

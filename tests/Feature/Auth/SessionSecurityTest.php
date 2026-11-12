@@ -6,6 +6,7 @@ use App\Enums\OrganizationRole;
 use App\Models\User;
 use App\Support\SessionEpoch;
 use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
+use Laravel\Fortify\Events\TwoFactorAuthenticationDisabled;
 
 it('signs out a session that predates a credential change', function (): void {
     $user = organizer(OrganizationRole::Staff);
@@ -72,4 +73,58 @@ it('stamps new sign-ins with the current epoch', function (): void {
     $this->post('/login', ['email' => $user->email, 'password' => factoryPassword()]);
 
     expect(session(SessionEpoch::SESSION_KEY))->toBe(5);
+});
+
+it('requires a recently confirmed password to turn two-factor off', function (): void {
+    $user = User::factory()->withTwoFactor()->create();
+
+    $this->actingAs($user)->delete('/user/two-factor-authentication')->assertRedirect('/user/confirm-password');
+
+    expect($user->fresh()?->hasConfirmedTwoFactor())->toBeTrue();
+});
+
+it('turning two-factor off signs out other sessions and remember-me cookies, and is audited', function (): void {
+    $audit = captureAuditLog();
+    $user = User::factory()->withTwoFactor()->create();
+    $rememberToken = $user->remember_token;
+
+    $this
+        ->actingAs($user)
+        ->withSession([SessionEpoch::SESSION_KEY => 0, 'auth.password_confirmed_at' => time()])
+        ->delete('/user/two-factor-authentication')
+        ->assertSessionHas('status', 'two-factor-authentication-disabled');
+
+    $user->refresh();
+    expect($user->hasConfirmedTwoFactor())
+        ->toBeFalse()
+        ->and($user->session_epoch)
+        ->toBe(1)
+        ->and($user->remember_token)
+        ->not
+        ->toBe($rememberToken)
+        ->and($audit->hasInfoThatContains('two_factor.disabled'))
+        ->toBeTrue();
+
+    // This session carries on; another one, still on epoch 0, is signed out.
+    $this->get('/dashboard')->assertOk();
+    $this->withSession([SessionEpoch::SESSION_KEY => 0])->get('/dashboard')->assertRedirect('/login');
+});
+
+it('rejects a remember-me token issued before two-factor was turned off', function (): void {
+    $user = User::factory()->withTwoFactor()->create();
+    $oldToken = (string) $user->remember_token;
+    $provider = auth()->guard('web')->getProvider();
+    expect($provider->retrieveByToken($user->id, $oldToken)?->getAuthIdentifier())->toBe($user->id);
+
+    TwoFactorAuthenticationDisabled::dispatch($user);
+
+    expect($provider->retrieveByToken($user->id, $oldToken))->toBeNull();
+});
+
+it('audits turning two-factor on', function (): void {
+    $audit = captureAuditLog();
+
+    TwoFactorAuthenticationConfirmed::dispatch(User::factory()->create());
+
+    expect($audit->hasInfoThatContains('two_factor.enabled'))->toBeTrue();
 });
