@@ -10,6 +10,7 @@ use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
 use App\Support\LeaderboardCache;
+use App\Support\ShareLinks;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
@@ -106,6 +107,42 @@ final class CategoryShow extends Component
             'standings' => $standings,
             'totalVotes' => $standings === null ? 0 : array_sum($standings),
             'acceptsVotes' => $category->status->isVotingAllowed(),
-        ])->title("{$category->name} · {$category->awardProgram->title}");
+        ])
+            ->title("{$category->name} · {$category->awardProgram->title}")
+            ->layoutData(['meta' => $this->shareMeta($nominees)]);
+    }
+
+    /**
+     * Open Graph tags for a nominee deep link, so a shared link previews with the campaign image. Name,
+     * code, category and program only: never counts, whatever the category's status.
+     *
+     * @param  \Illuminate\Database\Eloquent\Collection<int, Nominee>  $nominees
+     * @return array<string, string>
+     */
+    private function shareMeta($nominees): array
+    {
+        $nominee = $this->selectedNomineeId === null ? null : $nominees->firstWhere('id', $this->selectedNomineeId);
+
+        if ($nominee === null) {
+            return [];
+        }
+
+        $nominee->setRelation(
+            'awardCategory',
+            AwardCategory::query()->with('awardProgram.organization')->findOrFail($this->categoryId),
+        );
+        $nominee->setRelation('awardProgram', $nominee->awardCategory->awardProgram);
+        $share = ShareLinks::for($nominee);
+
+        return [
+            'og:type' => 'website',
+            'og:title' => "Vote for {$nominee->displayName()} ({$nominee->nominee_code})",
+            'og:description' => "{$nominee->awardCategory->name} · {$nominee->awardProgram->title}",
+            'og:url' => $share['url'],
+            'og:image' => $share['images']['og'],
+            'og:image:width' => '1200',
+            'og:image:height' => '630',
+            'twitter:card' => 'summary_large_image',
+        ];
     }
 }

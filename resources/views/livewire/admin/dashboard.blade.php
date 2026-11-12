@@ -26,10 +26,15 @@
                 </p>
             </div>
 
-            <h3 class="mt-6 text-sm font-medium text-ink-secondary">Programs</h3>
+            <div class="mt-6 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-medium text-ink-secondary">Programs</h3>
+                @can('create', [\App\Models\AwardProgram::class, $organization])
+                    <a href="{{ route('dashboard.programs.create', $organization) }}" class="inline-flex min-h-11 items-center rounded-[var(--radius-md)] bg-primary px-3 text-sm font-semibold text-primary-fg">New program</a>
+                @endcan
+            </div>
             @forelse ($programs as $program)
                 <article wire:key="program-{{ $program->id }}" class="mt-3 rounded-[var(--radius-md)] border border-hairline bg-surface p-4">
-                    <p class="font-medium text-ink">{{ $program->title }}</p>
+                    <a href="{{ route('dashboard.programs.show', $program) }}" class="font-medium text-ink underline-offset-4 hover:underline">{{ $program->title }}</a>
                     <p class="mt-1 text-sm text-ink-secondary">{{ $program->status->label() }}</p>
                 </article>
             @empty

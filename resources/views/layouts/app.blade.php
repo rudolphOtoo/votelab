@@ -6,6 +6,9 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>{{ isset($title) ? $title.' · ' : '' }}{{ config('app.name') }}</title>
+    @foreach ($meta ?? [] as $property => $content)
+        <meta property="{{ $property }}" content="{{ $content }}">
+    @endforeach
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles

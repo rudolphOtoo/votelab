@@ -2,12 +2,20 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\ExportResultsController;
+use App\Http\Controllers\Admin\NomineeOriginalPhotoController;
 use App\Http\Controllers\Payment\PaymentCallbackController;
+use App\Http\Controllers\Public\ShareImageController;
 use App\Http\Middleware\EnsureVoterCookie;
 use App\Http\Middleware\RequireTwoFactorForManagers;
 use App\Livewire\Admin\AccountSecurity;
+use App\Livewire\Admin\CategoryManager;
 use App\Livewire\Admin\Dashboard;
+use App\Livewire\Admin\NomineeManager;
 use App\Livewire\Admin\OrganizationMembers;
+use App\Livewire\Admin\ProgramCreate;
+use App\Livewire\Admin\ProgramManager;
+use App\Livewire\Admin\ResultsAuditor;
 use App\Livewire\Auth\AcceptInvitation;
 use App\Livewire\Public\CategoryShow;
 use App\Livewire\Public\ProgramLanding;
@@ -41,6 +49,28 @@ Route::middleware('auth')->group(static function (): void {
 
     Route::middleware(RequireTwoFactorForManagers::class)->group(static function (): void {
         Route::livewire('/dashboard', Dashboard::class)->name('dashboard');
+        Route::livewire('/dashboard/organizations/{organization:slug}/programs/new', ProgramCreate::class)->name(
+            'dashboard.programs.create',
+        );
+        Route::livewire('/dashboard/programs/{program}', ProgramManager::class)
+            ->whereNumber('program')
+            ->name('dashboard.programs.show');
+        Route::livewire('/dashboard/programs/{program}/categories', CategoryManager::class)
+            ->whereNumber('program')
+            ->name('dashboard.programs.categories');
+        Route::livewire('/dashboard/programs/{program}/categories/{category}/nominees', NomineeManager::class)
+            ->whereNumber(['program', 'category'])
+            ->name('dashboard.programs.nominees');
+        Route::livewire('/dashboard/programs/{program}/results', ResultsAuditor::class)
+            ->whereNumber('program')
+            ->name('dashboard.programs.results');
+        Route::get('/dashboard/programs/{program}/export', ExportResultsController::class)
+            ->whereNumber('program')
+            ->middleware('throttle:10,1')
+            ->name('dashboard.programs.export');
+        Route::get('/dashboard/nominees/{nominee}/original', NomineeOriginalPhotoController::class)->whereNumber(
+            'nominee',
+        )->name('dashboard.nominees.original');
         Route::livewire('/dashboard/organizations/{organization:slug}/members', OrganizationMembers::class)->name(
             'dashboard.members',
         );
@@ -87,5 +117,9 @@ Route::middleware([EnsureVoterCookie::class, 'throttle:public-pages'])->group(st
                 '/{organization:slug}/{awardProgram:slug}/{nominee:nominee_code}',
                 CategoryShow::class,
             )->name('public.nominee');
+            Route::get(
+                '/{organization:slug}/{awardProgram:slug}/{nominee:nominee_code}/share/{format}',
+                ShareImageController::class,
+            )->whereIn('format', ['og', 'square', 'story'])->name('public.nominee.share');
         });
 });
