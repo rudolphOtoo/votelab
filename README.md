@@ -165,4 +165,7 @@ Stage 3 (hardening) completes this list; the items below are already required.
   SPF/DKIM). With the default `log` mailer, invitations and password resets are never delivered.
 - [ ] **Queue worker** and **scheduler** running (see above). Invitation and password-reset emails are
   queued, so without a worker they are never sent.
+- [ ] **Failed jobs are pruned:** the scheduler runs `queue:prune-failed --hours=168` daily. A failed
+  invitation or reset email keeps its one-time link in `failed_jobs`; pruning removes it after 7 days.
+  Retry failed emails (`php artisan queue:retry`) within that window, or send a new invitation.
 - [ ] **Cache and locks on Redis** with `noeviction` (see [Cache, locks and logs](#cache-locks-and-logs)).
