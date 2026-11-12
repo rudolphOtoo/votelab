@@ -94,8 +94,12 @@ PAGES=(
 
 echo "→ Lighthouse (mobile, simulated throttling) → $OUT"
 printf "| Page | Perf | A11y | Best pr. | SEO | LCP | CLS | TBT | Transfer |\n|---|---|---|---|---|---|---|---|---|\n" > "$OUT/summary.md"
+# ONLY=landing,sign-in measures a subset; RUNS=3 repeats each page (rows name, name-2, name-3) to spot noise.
 for entry in "${PAGES[@]}"; do
-    name="${entry%%|*}"; url="${entry#*|}"
+    page="${entry%%|*}"; url="${entry#*|}"
+    if [ -n "${ONLY:-}" ] && [[ ",$ONLY," != *",$page,"* ]]; then continue; fi
+    for run in $(seq 1 "${RUNS:-1}"); do
+    name="$page"; [ "$run" -gt 1 ] && name="$page-$run"
     npx --yes "$LIGHTHOUSE" "$url" --quiet --form-factor=mobile --throttling-method=simulate \
         --chrome-flags="--headless=new --no-sandbox --ignore-certificate-errors" \
         --output=json --output=html --output-path="$OUT/$name" >/dev/null 2>&1 || {
@@ -103,6 +107,7 @@ for entry in "${PAGES[@]}"; do
             grep -E '\.(ERROR|CRITICAL|EMERGENCY)' "$APP/storage/logs/laravel.log" 2>/dev/null | tail -n 1 | cut -c1-400 | sed 's/^/    /'
         }
     node "$REPO/scripts/perf/summarize.mjs" "$OUT/$name.report.json" "$name" >> "$OUT/summary.md"
+    done
 done
 cat "$OUT/summary.md"
 echo
