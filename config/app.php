@@ -18,6 +18,19 @@ return [
 
     /*
      |--------------------------------------------------------------------------
+     | Health check token
+     |--------------------------------------------------------------------------
+     |
+     | Monitors sending this value in the X-Health-Token header get the detailed
+     | checks from GET /health; everyone else gets only the status word (D-111).
+     | Empty: details are never shown.
+     |
+     */
+
+    'health_check_token' => env('HEALTH_CHECK_TOKEN'),
+
+    /*
+     |--------------------------------------------------------------------------
      | Application Environment
      |--------------------------------------------------------------------------
      |
