@@ -69,6 +69,23 @@ final class AwardProgram extends Model
     /**
      * @return array<string, string>
      */
+    /**
+     * A program by id ("12") or by "organization-slug/program-slug", for commands.
+     */
+    public static function findByReference(string $reference): ?self
+    {
+        if (ctype_digit($reference)) {
+            return self::query()->find((int) $reference);
+        }
+
+        [$organization, $program] = array_pad(explode('/', $reference, 2), 2, '');
+
+        return self::query()
+            ->whereHas('organization', static fn($query) => $query->where('slug', $organization))
+            ->where('slug', $program)
+            ->first();
+    }
+
     protected function casts(): array
     {
         return [
