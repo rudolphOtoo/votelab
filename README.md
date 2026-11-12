@@ -10,7 +10,7 @@ and present the results on an auditorium stage screen.
 
 ## Stack
 
-PHP 8.4+, Laravel 13, Livewire 4, Fortify, Tailwind CSS 4 with Sheaf UI, Pest 5, Larastan (level 8), Mago.
+PHP 8.4+, Laravel 13, Livewire 4, Fortify, Tailwind CSS 4 with the VoteLab design system (`resources/views/components/ui`, gallery at `/dev/components` outside production), Pest 5, Larastan (level 8), Mago.
 
 ## Local setup
 
@@ -289,7 +289,8 @@ Stage 3 (hardening) completes this list; the items below are already required.
   S3 bucket): nominee photos are served from it.
 - [ ] **The boot guard passes.** In production the app refuses to start (web and CLI) unless: the cache store
   holds atomic locks shared by all servers (not `array` or `file`), `APP_DEBUG=false`, `PAYSTACK_SECRET_KEY`
-  is a live key, and `VOTING_PHONE_HASH_KEY` is set. The error lists every problem.
+  is a live key, `VOTING_PHONE_HASH_KEY` is set, and `PAYMENTS_LOGGING_ENABLED` is not `true` (D-122). The
+  error lists every problem.
 - [ ] **Sentry DSN set** (`SENTRY_LARAVEL_DSN`) and alert rules created for `queue.job_failed`,
   `fulfilment.gave_up`, `tally.drift` and `tally.drift_nightly`.
 - [ ] **An uptime monitor watches `/health`** (alert on 503 and on `"status":"degraded"`). Set
