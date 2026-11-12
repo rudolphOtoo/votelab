@@ -87,7 +87,12 @@ Organizers sign in at `/login`; there is no public sign-up.
 - **Two-factor:** owners and admins must turn it on within `ORGANIZER_TWO_FACTOR_GRACE_DAYS` (7) of their
   first sign-in; after that only **Security** stays open until they do. Passkeys are supported too.
 - **Sessions:** changing the password, resetting it, or turning on two-factor signs out every other session.
-- Invitations and membership changes are logged to `storage/logs/audit-*.log` (`LOG_AUDIT_DAYS`, 365).
+- **Audit trail:** every organizer action that changes something (invitations, memberships, two-factor,
+  category status, reveal, nominees, settings) and every transaction lookup is written to the append-only
+  `audit_events` table (who, what, which record, before/after, IP) and copied to `storage/logs/audit-*.log`
+  (`LOG_AUDIT_DAYS`, 365). The app never updates or deletes audit rows.
+- **Tally drift:** if a nominee's counter ever differs from the vote ledger (checked at every reveal), it is
+  corrected from the ledger, logged at error level and audited per nominee.
 
 ## Permissions
 
