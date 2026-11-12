@@ -33,6 +33,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->appendToGroup('web', \App\Http\Middleware\EnsureSessionIsCurrent::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Unhandled exceptions go to Sentry when SENTRY_LARAVEL_DSN is set (scrubbed by PiiScrubber, D-107).
+        \Sentry\Laravel\Integration::handles($exceptions);
+
         $exceptions->shouldRenderJsonWhen(fn(Request $request) => $request->is('api/*') || $request->expectsJson());
     })
     ->create();

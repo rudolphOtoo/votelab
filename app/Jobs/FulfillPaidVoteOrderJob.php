@@ -8,6 +8,7 @@ use App\Actions\Voting\FulfillPaidVoteOrderAction;
 use App\Enums\PaymentTrigger;
 use App\Enums\TransactionStatus;
 use App\Exceptions\PaymentGatewayException;
+use App\Support\Observability\Alert;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -66,6 +67,12 @@ final class FulfillPaidVoteOrderJob implements ShouldQueue
             'reference' => $this->reference,
             'trigger' => PaymentTrigger::Webhook->value,
             'error' => $e->getMessage(),
+        ]);
+
+        // A paid vote may be uncredited: an operator must verify it by hand (D-108).
+        Alert::raise('fulfilment.gave_up', [
+            'reference' => $this->reference,
+            'error_class' => $e::class,
         ]);
     }
 }

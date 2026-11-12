@@ -27,6 +27,7 @@ final readonly class VoteFingerprintService
                 is_string($cookie) ? $cookie : '',
             ])),
             ipHash: $this->hash($ip),
+            deviceKey: is_string($cookie) && $cookie !== '' ? $this->hash('device|' . $cookie) : null,
         );
     }
 

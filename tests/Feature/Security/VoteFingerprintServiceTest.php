@@ -74,11 +74,17 @@ it('never uses APP_KEY for phone hashes: a fixed test key outside production', f
 });
 
 it('refuses to boot in production without VOTING_PHONE_HASH_KEY', function (): void {
-    config(['voting.phone_hash_key' => '']);
+    // Otherwise safe for production (D-106), so the phone key is the only problem reported.
+    config([
+        'cache.default' => 'database',
+        'app.debug' => false,
+        'payments.providers.paystack.secret_key' => 'sk_live_x',
+        'voting.phone_hash_key' => '',
+    ]);
     app()->detectEnvironment(static fn(): string => 'production');
 
     expect(fn() => new App\Providers\AppServiceProvider(app())->boot())
-        ->toThrow(RuntimeException::class, 'VOTING_PHONE_HASH_KEY must be set in production.');
+        ->toThrow(RuntimeException::class, 'VOTING_PHONE_HASH_KEY is missing.');
 
     config(['voting.phone_hash_key' => 'a-real-production-key']);
     expect(App\Services\Security\PhoneHasher::key())->toBe('a-real-production-key');

@@ -151,17 +151,25 @@ return [
      |
      */
 
+    // Per minute (D-105). Voter-facing limits are keyed mainly on the device cookie (EnsureVoterCookie), with
+    // a much higher per-network ceiling as a backstop: Ghanaian mobile networks use carrier-grade NAT and
+    // venue Wi-Fi puts hundreds of voters on one IP.
     'rate_limits' => [
-        'checkout_per_voter' => (int) env('VOTING_RATE_CHECKOUT_PER_VOTER', 5),
-        'checkout_per_ip' => (int) env('VOTING_RATE_CHECKOUT_PER_IP', 30),
-        'checkout_per_nominee' => (int) env('VOTING_RATE_CHECKOUT_PER_NOMINEE', 300),
-        'free_vote_per_voter' => (int) env('VOTING_RATE_FREE_VOTE_PER_VOTER', 10),
-        'free_vote_per_ip' => (int) env('VOTING_RATE_FREE_VOTE_PER_IP', 60),
-        'public_pages_per_ip' => (int) env('VOTING_RATE_PUBLIC_PAGES_PER_IP', 120),
-        // Share images are rendered with GD on a cache miss, so they get a tighter limit.
-        'share_images_per_ip' => (int) env('VOTING_RATE_SHARE_IMAGES_PER_IP', 30),
-        // The stage screen polls every 5 s (12/min per screen); several screens may share a venue network.
+        'checkout_per_voter' => (int) env('VOTING_RATE_CHECKOUT_PER_VOTER', 5), // per device
+        'checkout_per_ip' => (int) env('VOTING_RATE_CHECKOUT_PER_IP', 600),
+        'checkout_per_nominee' => (int) env('VOTING_RATE_CHECKOUT_PER_NOMINEE', 1200),
+        'free_vote_per_voter' => (int) env('VOTING_RATE_FREE_VOTE_PER_VOTER', 10), // per device
+        'free_vote_per_ip' => (int) env('VOTING_RATE_FREE_VOTE_PER_IP', 1200),
+        'public_pages_per_device' => (int) env('VOTING_RATE_PUBLIC_PAGES_PER_DEVICE', 120),
+        'public_pages_per_ip' => (int) env('VOTING_RATE_PUBLIC_PAGES_PER_IP', 3000),
+        'callback_per_device' => (int) env('VOTING_RATE_CALLBACK_PER_DEVICE', 30),
+        'callback_per_ip' => (int) env('VOTING_RATE_CALLBACK_PER_IP', 3000),
+        // Share images are cached after the first render; link-preview fetchers share a few IPs.
+        'share_images_per_ip' => (int) env('VOTING_RATE_SHARE_IMAGES_PER_IP', 600),
+        // The stage screen polls every 5 s (12/min per screen); a few screens per venue.
         'stage_per_ip' => (int) env('VOTING_RATE_STAGE_PER_IP', 120),
+        // Paystack delivers webhooks from a few IPs; signatures are checked before any work.
+        'webhook_per_ip' => (int) env('VOTING_RATE_WEBHOOK_PER_IP', 1200),
     ],
 
     /*

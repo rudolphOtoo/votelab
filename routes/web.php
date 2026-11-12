@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Admin\ExportResultsController;
 use App\Http\Controllers\Admin\NomineeOriginalPhotoController;
+use App\Http\Controllers\HealthController;
 use App\Http\Controllers\Payment\PaymentCallbackController;
 use App\Http\Controllers\Public\ShareImageController;
 use App\Http\Middleware\EnsureVoterCookie;
@@ -23,7 +24,7 @@ use App\Livewire\Stage\StageLeaderboard;
 use App\Support\DedicatedSite;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/payments/callback', PaymentCallbackController::class)->middleware('throttle:30,1')->name(
+Route::get('/payments/callback', PaymentCallbackController::class)->middleware('throttle:payment-callback')->name(
     'payments.callback',
 );
 
@@ -37,6 +38,9 @@ Route::get('/payments/callback', PaymentCallbackController::class)->middleware('
  | organization slug (config/organizations.php), so it can never be shadowed by a public page.
  |
  */
+
+// Health for uptime monitors (D-109): JSON, 503 when votes can't be taken safely.
+Route::get('/health', HealthController::class)->middleware('throttle:health')->name('health');
 
 // Projector screen: no login, rate limited, published programs only (A.8).
 Route::livewire('/stage/{organization:slug}/{awardProgram:slug}', StageLeaderboard::class)

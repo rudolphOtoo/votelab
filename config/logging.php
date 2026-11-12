@@ -93,6 +93,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Operator alerts (App\Support\Observability\Alert): failed jobs, fulfilment.gave_up, tally drift.
+        // Also sent to Sentry. Ids only.
+        'alerts' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/alerts.log'),
+            'level' => 'error',
+            'max_files' => env('LOG_ALERTS_DAYS', 90),
+            'replace_placeholders' => true,
+        ],
+
         'payments' => [
             'driver' => 'daily',
             'path' => storage_path('logs/payments.log'),

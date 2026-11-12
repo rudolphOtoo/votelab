@@ -80,6 +80,7 @@ return [
         'email',
         'favicon',
         'forgot-password',
+        'health',
         'help',
         'home',
         'img',

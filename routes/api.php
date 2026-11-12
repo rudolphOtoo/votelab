@@ -7,5 +7,5 @@ use Illuminate\Support\Facades\Route;
 
 // Stateless, CSRF-free (api middleware group). Point the Paystack dashboard webhook URL here.
 Route::post('/webhooks/paystack', PaystackWebhookController::class)
-    ->middleware('throttle:240,1')
+    ->middleware('throttle:paystack-webhook')
     ->name('webhooks.paystack');
