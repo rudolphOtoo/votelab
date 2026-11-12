@@ -29,8 +29,10 @@ final readonly class RevealResult
      */
     public static function forCategory(AwardCategory $category, bool $newlyRevealed, int $pendingOverridden = 0): self
     {
+        // Archived nominees can't win or appear on the podium (D-102); their votes stay in the ledger.
         $ranked = Nominee::query()
             ->where('award_category_id', $category->id)
+            ->whereNull('archived_at')
             ->orderByDesc('votes_count')
             ->orderBy('display_order')
             ->orderBy('id')

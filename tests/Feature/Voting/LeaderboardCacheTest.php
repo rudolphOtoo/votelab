@@ -243,3 +243,11 @@ it('treats a category that no longer exists as hidden', function (): void {
 
     expect(LeaderboardCache::standings($category))->toBeNull();
 });
+
+it('leaves archived nominees off the public leaderboard', function (): void {
+    $category = AwardCategory::factory()->status(CategoryStatus::Open)->create();
+    $active = Nominee::factory()->for($category)->create(['votes_count' => 5]);
+    Nominee::factory()->for($category)->create(['votes_count' => 999, 'archived_at' => now()]);
+
+    expect(LeaderboardCache::standings($category))->toBe([$active->id => 5]);
+});

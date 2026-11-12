@@ -61,3 +61,25 @@ it('changes every hash when the fingerprint key changes', function (): void {
 
     expect($after->voterKey)->not->toBe($before->voterKey)->and($after->ipHash)->not->toBe($before->ipHash);
 });
+
+it('never uses APP_KEY for phone hashes: a fixed test key outside production', function (): void {
+    config(['voting.phone_hash_key' => null]);
+
+    expect(App\Services\Security\PhoneHasher::key())
+        ->toBe(App\Services\Security\PhoneHasher::NON_PRODUCTION_KEY)
+        ->not
+        ->toBe(config('app.key'))
+        ->and(app(App\Services\Security\PhoneHasher::class)->hashForSearch('0241234567'))
+        ->toBe(hash_hmac('sha256', '233241234567', App\Services\Security\PhoneHasher::NON_PRODUCTION_KEY));
+});
+
+it('refuses to boot in production without VOTING_PHONE_HASH_KEY', function (): void {
+    config(['voting.phone_hash_key' => '']);
+    app()->detectEnvironment(static fn(): string => 'production');
+
+    expect(fn() => new App\Providers\AppServiceProvider(app())->boot())
+        ->toThrow(RuntimeException::class, 'VOTING_PHONE_HASH_KEY must be set in production.');
+
+    config(['voting.phone_hash_key' => 'a-real-production-key']);
+    expect(App\Services\Security\PhoneHasher::key())->toBe('a-real-production-key');
+});

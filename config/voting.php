@@ -134,8 +134,9 @@ return [
 
     'fingerprint_key' => env('VOTING_FINGERPRINT_KEY'),
 
-    // Keys phone_hash on vote_transactions (exact search by phone without storing the number, D-86).
-    // Falls back to APP_KEY. Rotating it makes phone search miss every row hashed with the old key.
+    // Keys phone_hash on vote_transactions (exact search by phone without storing the number, D-86). Required
+    // in production (the app refuses to boot without it, D-101); never falls back to APP_KEY. Rotating it makes
+    // phone search miss every row hashed with the old key.
     'phone_hash_key' => env('VOTING_PHONE_HASH_KEY'),
 
     'voter_cookie' => env('VOTING_VOTER_COOKIE', 'vl_voter'),
@@ -157,6 +158,10 @@ return [
         'free_vote_per_voter' => (int) env('VOTING_RATE_FREE_VOTE_PER_VOTER', 10),
         'free_vote_per_ip' => (int) env('VOTING_RATE_FREE_VOTE_PER_IP', 60),
         'public_pages_per_ip' => (int) env('VOTING_RATE_PUBLIC_PAGES_PER_IP', 120),
+        // Share images are rendered with GD on a cache miss, so they get a tighter limit.
+        'share_images_per_ip' => (int) env('VOTING_RATE_SHARE_IMAGES_PER_IP', 30),
+        // The stage screen polls every 5 s (12/min per screen); several screens may share a venue network.
+        'stage_per_ip' => (int) env('VOTING_RATE_STAGE_PER_IP', 120),
     ],
 
     /*

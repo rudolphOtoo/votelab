@@ -292,3 +292,17 @@ it('uses the grace window the category closed with, not a later program setting'
     Carbon::setTestNow('2026-11-20 20:10:00');
     expect(RevealWinnerAction::pendingPaymentsCount($category->fresh() ?? $category))->toBe(0);
 });
+
+it('leaves an archived nominee off the podium even with the most votes', function (): void {
+    [$category, $nominees, $admin] = closedCategory([10, 900, 25]);
+    $nominees[1]->forceFill(['archived_at' => now()])->save();
+
+    $result = reveal($category, $admin);
+
+    expect($result->winnerIds)
+        ->toBe([$nominees[2]->id])
+        ->and(array_column($result->podium, 'nominee_id'))
+        ->toBe([$nominees[2]->id, $nominees[0]->id])
+        ->and($nominees[1]->fresh()?->votes_count)
+        ->toBe(900); // Still counted in the ledger.
+});

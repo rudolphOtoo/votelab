@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Policies\ProgramReportingPolicy;
 use App\Services\Payment\PaystackFeeCalculator;
 use App\Services\Payment\PaystackPaymentGateway;
+use App\Services\Security\PhoneHasher;
 use App\Services\Security\VoteFingerprintService;
 use App\Services\Security\VoterIdentity;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -40,6 +41,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Model::preventLazyLoading(!$this->app->isProduction());
 
+        // Production must not start without its dedicated phone hash key (D-101).
+        if ($this->app->isProduction()) {
+            PhoneHasher::ensureConfigured();
+        }
+
         // Organizer passwords: 12+ characters; in production also refused if found in known breaches
         // (Have I Been Pwned range API, k-anonymity: only a 5-character hash prefix leaves the server).
         Password::defaults(fn(): Password => $this->app->isProduction()
@@ -68,6 +74,15 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('public-pages', static fn(Request $request): Limit => Limit::perMinute($limits(
             'public_pages_per_ip',
         ))->by(app(VoteFingerprintService::class)->identify($request)->ipHash));
+
+        RateLimiter::for('share-images', static fn(Request $request): Limit => Limit::perMinute($limits(
+            'share_images_per_ip',
+        ))->by(app(VoteFingerprintService::class)->identify($request)->ipHash));
+
+        // Stage screen: page loads (route middleware, given the request) and polls (Throttle, given the IP hash).
+        RateLimiter::for('stage', static fn(Request|string $from): Limit => Limit::perMinute($limits(
+            'stage_per_ip',
+        ))->by('stage:' . (is_string($from) ? $from : app(VoteFingerprintService::class)->identify($from)->ipHash)));
 
         RateLimiter::for('vote-checkout', static fn(VoterIdentity $voter, int $nomineeId): array => [
             Limit::perMinute($limits('checkout_per_voter'))->by("voter:{$voter->voterKey}"),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Security;
 
+use RuntimeException;
 use SensitiveParameter;
 
 /**
@@ -15,6 +16,8 @@ use SensitiveParameter;
  */
 final class PhoneHasher
 {
+    public const string NON_PRODUCTION_KEY = 'votelab-non-production-phone-hash-key';
+
     /**
      * @return array{phone_hash: string, phone_last3: string}|null  null when it isn't a usable number
      */
@@ -50,8 +53,34 @@ final class PhoneHasher
 
     private function hash(#[SensitiveParameter] string $normalized): string
     {
+        return hash_hmac('sha256', $normalized, self::key());
+    }
+
+    /**
+     * The dedicated phone hash key (D-101): never APP_KEY. Production refuses to boot without one
+     * (ensureConfigured, called from AppServiceProvider); elsewhere a fixed, public test key is used, so
+     * hashes made outside production are worthless against production data.
+     */
+    public static function key(): string
+    {
         $key = config('voting.phone_hash_key');
 
-        return hash_hmac('sha256', $normalized, is_string($key) && $key !== '' ? $key : (string) config('app.key'));
+        if (is_string($key) && $key !== '') {
+            return $key;
+        }
+
+        if (app()->isProduction()) {
+            throw new RuntimeException('VOTING_PHONE_HASH_KEY must be set in production.');
+        }
+
+        return self::NON_PRODUCTION_KEY;
+    }
+
+    /**
+     * @throws RuntimeException When running in production without VOTING_PHONE_HASH_KEY.
+     */
+    public static function ensureConfigured(): void
+    {
+        self::key();
     }
 }

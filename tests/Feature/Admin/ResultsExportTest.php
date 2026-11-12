@@ -134,3 +134,12 @@ it('aggregates in SQL and streams rows, so large ledgers do not load into memory
         ->and(collect($selects)->filter(fn(string $sql): bool => str_contains($sql, 'from "nominees"'))->first())
         ->toContain('SUM(quantity)');
 });
+
+it('keeps an archived nominee with the most votes in the export, marked archived', function (): void {
+    [$program, , , $archived] = exportFixture();
+    App\Models\VoteRecord::factory()->for($archived)->create(['quantity' => 500, 'is_paid' => true]);
+
+    $csv = exportCsv($program, organizer(OrganizationRole::Owner, $program->organization));
+
+    expect($csv)->toContain('KB33,"Kofi Boateng",500,yes');
+});

@@ -29,7 +29,9 @@ final class LeaderboardSource
     }
 
     /**
-     * nominee_id => votes, from the derived nominees.votes_count counter (one indexed read, no aggregates).
+     * nominee_id => votes for the category's active nominees, from the derived nominees.votes_count counter
+     * (one indexed read, no aggregates). Archived nominees are left out (D-102): their votes stay in the
+     * ledger, the audit and the export, but not on public or stage leaderboards.
      *
      * @return array<int, int>
      */
@@ -37,6 +39,7 @@ final class LeaderboardSource
     {
         return Nominee::query()
             ->where('award_category_id', $awardCategoryId)
+            ->whereNull('archived_at')
             ->pluck('votes_count', 'id')
             ->map(static fn(mixed $votes): int => (int) $votes)
             ->all();
