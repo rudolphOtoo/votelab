@@ -27,7 +27,16 @@ final class VoteKeys
     }
 
     /**
-     * Held while one request rebuilds a category's missing standings, so concurrent misses rebuild once.
+     * Present while a category's cached standings are fresh. Votes delete it; the standings themselves
+     * stay as the last good copy, served while one request rebuilds.
+     */
+    public static function leaderboardFresh(int $awardCategoryId): string
+    {
+        return "voting:leaderboard-fresh:{$awardCategoryId}";
+    }
+
+    /**
+     * Held while one request rebuilds a category's standings, so concurrent misses rebuild once.
      */
     public static function leaderboardRebuildLock(int $awardCategoryId): string
     {

@@ -11,8 +11,8 @@ use App\Support\LeaderboardCache;
 /**
  * Keeps polled standings current as soon as votes land, paid or free.
  *
- * It only invalidates: rebuilding here would run one query per vote, while the next poll's
- * read rebuilds once under LeaderboardCache's lock however many votes landed in between.
+ * It only marks the standings stale: rebuilding here would run one query per vote, while the next
+ * poll rebuilds once under LeaderboardCache's lock (others get the last good copy meanwhile).
  */
 final class RefreshLeaderboardCache
 {

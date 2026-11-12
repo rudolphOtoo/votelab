@@ -9,6 +9,10 @@ use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
 use App\Support\LeaderboardCache;
+use App\Support\VoteKeys;
+use Illuminate\Cache\Events\RetrievingKey;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Livewire\Livewire;
 
 /**
@@ -100,4 +104,60 @@ it('polls quickly only while counts are public', function (): void {
 
     AwardCategory::query()->update(['status' => CategoryStatus::Embargoed]);
     $this->get('/org/awards/categories/cat')->assertSee('wire:poll.15s.visible', escape: false);
+});
+
+it('leaks no counts, rank order or bar widths on any cache fallback path', function (
+    CategoryStatus $status,
+    bool $staleCopy,
+): void {
+    $category = categoryWithCounts($status);
+
+    // Display order is the reverse of rank: N00 has the most votes but is listed second.
+    Nominee::query()->where('nominee_code', 'N00')->update(['display_order' => 2]);
+    Nominee::query()->where('nominee_code', 'N01')->update(['display_order' => 1]);
+
+    // Put the cache in its worst state: rebuild lock stuck, and either a stale copy or none at all.
+    LeaderboardCache::forget($category->id);
+    if (!$staleCopy) {
+        Cache::forget(VoteKeys::leaderboard($category->id));
+    }
+    Cache::lock(VoteKeys::leaderboardRebuildLock($category->id), 60)->get();
+
+    // Hidden results must not reach the leaderboard cache at all, so no fallback path can run.
+    $read = [];
+    Event::listen(RetrievingKey::class, static function (RetrievingKey $event) use (&$read): void {
+        if (str_starts_with($event->key, 'voting:leaderboard')) {
+            $read[] = $event->key;
+        }
+    });
+
+    $assertHidden = static function (string $content): void {
+        assertNoCounts($content);
+        expect($content)->not->toContain('scaleX')->and(strpos($content, 'N01'))->toBeLessThan(strpos($content, 'N00'));
+    };
+
+    $assertHidden($this->get('/org/awards/categories/cat')->assertOk()->getContent());
+    assertNoCounts($this->get('/org/awards/N00')->getContent());
+
+    $component = Livewire::test(CategoryShow::class, [
+        'organization' => $category->awardProgram->organization,
+        'awardProgram' => $category->awardProgram,
+        'category' => $category,
+    ])->call('refreshStandings');
+    $assertHidden($component->html());
+    assertNoCounts(json_encode($component->snapshot, JSON_THROW_ON_ERROR));
+
+    expect($read)->toBeEmpty();
+})->with([
+    'embargoed' => CategoryStatus::Embargoed,
+    'closed' => CategoryStatus::Closed,
+])->with([
+    'stale copy' => true,
+    'no copy' => false,
+]);
+
+it('draws bar widths when results are public, so the absence check above is meaningful', function (): void {
+    categoryWithCounts(CategoryStatus::Open);
+
+    expect($this->get('/org/awards/categories/cat')->getContent())->toContain('scaleX');
 });

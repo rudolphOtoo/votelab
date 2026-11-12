@@ -63,24 +63,36 @@ it('refreshes cached standings as soon as a free vote is cast', function (): voi
     expect(LeaderboardCache::standings($nominee->award_category_id)[$nominee->id])->toBe(1);
 });
 
-it('invalidates instead of rebuilding when votes land', function (): void {
+it('marks standings stale when votes land but keeps the last good copy', function (): void {
     $nominee = Nominee::factory()->for(AwardCategory::factory()->mode(VotingMode::Free))->create();
     LeaderboardCache::standings($nominee->award_category_id);
 
     app(CastFreeVoteAction::class)->execute($nominee, new VoterIdentity(str_repeat('a', 64), str_repeat('b', 64)));
 
-    expect(Cache::has(VoteKeys::leaderboard($nominee->award_category_id)))->toBeFalse();
+    expect(Cache::has(VoteKeys::leaderboardFresh($nominee->award_category_id)))
+        ->toBeFalse()
+        ->and(Cache::get(VoteKeys::leaderboard($nominee->award_category_id)))
+        ->toBe([$nominee->id => 0]);
 });
 
-it('rebuilds once when concurrent polls miss the cache together', function (): void {
+/**
+ * Counts the standings rebuild query (one indexed read of nominees.votes_count).
+ */
+function countRebuilds(int &$rebuilds, ?Closure $during = null): void
+{
+    DB::listen(static function ($query) use (&$rebuilds, $during): void {
+        if (str_starts_with($query->sql, 'select "votes_count", "id" from "nominees"')) {
+            $rebuilds++;
+            $during?->__invoke();
+        }
+    });
+}
+
+it('rebuilds once when concurrent polls find no copy at all', function (): void {
     $nominee = Nominee::factory()->create(['votes_count' => 12]);
     $categoryId = $nominee->award_category_id;
     $rebuilds = 0;
-    DB::listen(static function ($query) use (&$rebuilds): void {
-        if (str_starts_with($query->sql, 'select "votes_count", "id" from "nominees"')) {
-            $rebuilds++;
-        }
-    });
+    countRebuilds($rebuilds);
 
     // The first poll misses; before it takes the rebuild lock, a second poll misses too and wins the lock.
     $interleaved = false;
@@ -110,7 +122,53 @@ it('rebuilds once when concurrent polls miss the cache together', function (): v
         ->toBe($first);
 });
 
-it('reads the counter directly rather than failing when a rebuild lock is stuck', function (): void {
+it('serves the stale copy to concurrent polls while one of them rebuilds', function (): void {
+    $nominee = Nominee::factory()->create(['votes_count' => 5]);
+    $categoryId = $nominee->award_category_id;
+    LeaderboardCache::standings($categoryId);
+    Nominee::query()->whereKey($nominee->id)->update(['votes_count' => 9]);
+    LeaderboardCache::forget($categoryId);
+
+    // While the first poll holds the lock and runs its rebuild query, a second poll arrives.
+    $rebuilds = 0;
+    $second = null;
+    countRebuilds($rebuilds, static function () use (&$second, $categoryId): void {
+        $second ??= LeaderboardCache::standings($categoryId);
+    });
+
+    $first = LeaderboardCache::standings($categoryId);
+
+    expect($rebuilds)
+        ->toBe(1)
+        ->and($first)
+        ->toBe([$nominee->id => 9])
+        ->and($second)
+        ->toBe([$nominee->id => 5])
+        ->and(LeaderboardCache::standings($categoryId))
+        ->toBe([$nominee->id => 9]);
+});
+
+it('serves the stale copy without waiting or querying when the rebuild lock is stuck', function (): void {
+    $nominee = Nominee::factory()->create(['votes_count' => 4]);
+    $categoryId = $nominee->award_category_id;
+    LeaderboardCache::standings($categoryId);
+    Nominee::query()->whereKey($nominee->id)->update(['votes_count' => 6]);
+    LeaderboardCache::forget($categoryId);
+    Cache::lock(VoteKeys::leaderboardRebuildLock($categoryId), 30)->get();
+
+    $rebuilds = 0;
+    countRebuilds($rebuilds);
+    $started = microtime(true);
+
+    expect(LeaderboardCache::standings($categoryId))
+        ->toBe([$nominee->id => 4])
+        ->and($rebuilds)
+        ->toBe(0)
+        ->and(microtime(true) - $started)
+        ->toBeLessThan(1.0);
+});
+
+it('reads the counter directly only when no copy exists and the rebuild lock is stuck', function (): void {
     $nominee = Nominee::factory()->create(['votes_count' => 4]);
     Cache::lock(VoteKeys::leaderboardRebuildLock($nominee->award_category_id), 30)->get();
 
