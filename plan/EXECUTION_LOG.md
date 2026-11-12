@@ -51,7 +51,7 @@ Task IDs are derived here because the plan has none: `M0.x` = Shared Foundation,
 | A.6 | Livewire `NomineeManager` (4:5 upload) | DEV_A §2 | todo |
 | A.7 | Livewire `ResultsAuditor` + streaming export | DEV_A §2 | todo |
 | A.8 | `StageLeaderboard` (`/stage/{program:slug}`), reveal + confetti | DEV_A §3 | todo |
-| A.9 | Policies: AwardProgram, AwardCategory, Nominee | DEV_A §4 | todo |
+| A.9 | Policies: AwardProgram, AwardCategory, Nominee | DEV_A §4 | done (Stage 2b, D-82–D-84) |
 | A.10 | Tests `tests/Feature/Admin/*` | DEV_A §Tests | todo |
 | B.1 | `CastFreeVoteAction` | DEV_B §1 | done |
 | B.2 | `InitiatePaidVoteOrderAction` | DEV_B §1 | done |
@@ -155,6 +155,9 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 | D-79 | **Two-factor off** goes through Fortify's `password.confirm` (already required by `confirmPassword`), and `TrackOrganizerSessions` now also handles `TwoFactorAuthenticationDisabled`: bumps the session epoch (other sessions end, remember-me token rotated) and writes `two_factor.disabled` to the audit log; turning it on writes `two_factor.enabled`. Tested, including that an old remember-me token no longer resolves. | Owner review of Stage 2a, 2026-11-12. | — |
 | D-80 | **Two-factor lock on Livewire actions:** `RequireTwoFactorForManagers` is persistent middleware; on a real `/livewire-*/update` request Livewire re-runs it and turns its redirect into an abort, so no action runs. Tested through the real update endpoint (`livewireCall()` in `tests/Pest.php`, since `Livewire::test()` skips persistent middleware), with a control test showing the same request succeeds inside the grace period. | Owner review of Stage 2a. | — |
 | D-81 | `queue:prune-failed --hours=168` runs daily (`onOneServer`): failed invitation/reset emails keep their one-time link in `failed_jobs`, so they are dropped after 7 days. In the production checklist. | Owner review of Stage 2a. | — |
+| D-82 | **Role × ability matrix (approved 2026-11-12, with the owner's changes: staff edit stage name in Draft only; owners emailed on slug/payout changes; transactions masked; archive/close block only new votes; Live changes audited).** Single source: `App\Support\PermissionMatrix` (ability → role → `any` or the category phases it holds in: Draft, Live = open or embargoed, Closed, Revealed). Deny by default: a missing role or ability is refused, a phase-limited grant asked without a phase is refused, and there is no `Gate::before`/`after` (tested). The README table is generated from it and a test keeps the copy identical. Abilities are five enums (`OrganizationAbility`, `ProgramAbility`, `CategoryAbility`, `NomineeAbility`, `ReportingAbility`) behind the `Ability` interface, to stay inside Mago's enum size limit. | Owner decision, Stage 2b. | DEV_A §4 (A.9) |
+| D-83 | **Policies** (`app/Policies`): membership first, then the matrix, then data rules. Category status moves are one `changeStatus($category, $to)` method; `CategoryAbility::forMove()` picks open, embargo, unembargo (Embargoed → Open), close or reveal, and `CategoryStatus` must allow the move. Program results, money and ledger reading (`exportResults`, `auditResults`, `viewTransactions`, `viewRefunds`, `recordRefunds`, `viewRevenue`) are `ProgramReportingPolicy`, registered as Gate abilities. Nominee abilities read the category's status from the database (not the caller's model). Deletes need no vote records and no transactions (nominee, program). Vote records and transactions: create/update/delete refused for every role (`ledger.write` has no grantee). `OrganizationPolicy::view` is now `organization.view`; the members page uses `viewMembers`. | Stage 2b. | DEV_A §4 (A.9) |
+| D-84 | **Recorded for Stage 2c/2d (owner, 2026-11-12):** (1) `organization.updateSlug` and `updatePayoutSettings` need a recently confirmed password and, on success, queue an email to every owner naming who changed what and when; audited. (2) Every change while a category is Live (late nominee, category rename, unembargo, nominee profile edits) is audited with actor, action and before/after values. (3) Results export holds no voter personal data; a transactions export, if ever needed, is a separate owner-only ability. (4) Archiving a nominee blocks new votes only (tests in 2c). (5) Transaction lists mask voter contact details; full details only on an exact lookup, which is audited — pending the D-12 question below. | Owner review of the matrix. | DEV_A A.2, A.6, A.7 |
 | D-15 | Add `award_program_id` to `vote_transactions` and `vote_records`, index `vote_transactions(award_category_id, status)`, and use `scopeBindings()` for program → category → nominee routes. | Hot queries and event-scoped binding (prompt §6). | SHARED §2 |
 
 ---
@@ -359,9 +362,15 @@ Follow-ups: Turnstile for free votes (needs a plan decision), reserved org slugs
 - **Commit tag correction:** `0dc135d` (`feat(organizers): …`) is tagged `[A.9]` in error. It is Stage 2a: organizer sign-in and invitations, which the plan's status table has no numbered item for. A.9 (policies) is Stage 2b. The commit was already pushed, so it was not rewritten (D-61: history changes are the owner's).
 - **Not verified:** pages not viewed in a real browser; the passkey ceremony (WebAuthn) and the QR code scan are not exercised by tests (browser-only). The Livewire update path of `RequireTwoFactorForManagers` is covered through the real update endpoint (D-80).
 
+### Stage 2b — Permissions (`feature/phase-4-organizer-stage`) — done, awaiting owner's commits (D-61)
+- **Built:** D-82 matrix + D-83 policies; README permissions table generated from the code.
+- **Tests:** 348 → 685 (`tests/Feature/Permissions`): every ability × role × category phase against an independently written copy of the approved matrix; every policy method × role × category status through the real Gate (including status moves via an independent from/to table); an owner of another organization refused on every ability; no `Gate::before`/`after`; ledger writes refused for every role; data rules (deleting with votes or transactions, archived program, unpublish while Live, moving a nominee between categories, stale nominee model).
+- **Open questions (owner):** see §4.
+
 ## 4. Open Questions (blockers)
 
-_None open._
+1. **Close grace vs "credit payments started before the change" (2026-11-12).** Today (D-10/D-32) a payment started before a category closed is credited only if verified within `VOTING_CLOSE_GRACE_MINUTES` (5) of the close; later it becomes `paid_uncredited` (refund queue); revealed never credits. Both cases are tested. The owner's Stage 2b note asks that such payments "still be credited" — unlimited, or keep the window? The log stands until decided.
+2. **Phone numbers vs D-12 (2026-11-12).** No phone number is stored (`vote_transactions.voter_email` only). Proposal: search by exact reference or exact email, mask emails in lists (`a***@gmail.com`), audit full-detail lookups. Or reverse D-12 to store Paystack's mobile-money number?
 
 Resolved 2026-10-30 by the project owner:
 1. **Spec:** build from the repo plan, applying §5 only where it maps (D-04…D-14). → D-16
