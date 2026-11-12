@@ -50,7 +50,7 @@ Task IDs are derived here because the plan has none: `M0.x` = Shared Foundation,
 | A.5 | Livewire `CategoryManager` | DEV_A §2 | done (Stage 2d, D-95) |
 | A.6 | Livewire `NomineeManager` (4:5 upload) | DEV_A §2 | done (Stage 2d, D-97) |
 | A.7 | Livewire `ResultsAuditor` + streaming export | DEV_A §2 | done (Stage 2d, D-98, D-99) |
-| A.8 | `StageLeaderboard` (`/stage/{program:slug}`), reveal + confetti | DEV_A §3 | todo |
+| A.8 | `StageLeaderboard` (`/stage/{program:slug}`), reveal + confetti | DEV_A §3 | done as `/stage/{organization}/{program}` (Stage 2e, D-104) |
 | A.9 | Policies: AwardProgram, AwardCategory, Nominee | DEV_A §4 | done (Stage 2b, D-82–D-84) |
 | A.10 | Tests `tests/Feature/Admin/*` | DEV_A §Tests | done (Stages 2c–2d) |
 | B.1 | `CastFreeVoteAction` | DEV_B §1 | done |
@@ -174,6 +174,10 @@ Phase 1 = M0 · Phase 2 = B.7–B.9, B.2–B.3 (money path) · Phase 3 = B.1, B.
 | D-98 | **Refunds.** `refund_records` (transaction unique, organization, recorded_by, reason, optional `paystack_refund_reference`, created_at), append-only model. Queue = `paid_uncredited` without a record (refunds.view). `RecordRefundAction`: refunds.record (owners), confirmed password, only `paid_uncredited`, reference validated, audited; no money moves and the transaction is unchanged. | Owner additions 3. | DEV_A A.7 |
 | D-99 | **Export.** `ExportResultsAction` streams CSV (Category, Nominee Code, Candidate Name, Total Votes, Archived) with totals aggregated from `vote_records` in SQL and read by cursor; UTF-8 BOM for Excel; no voter personal data; every export audited (`results.exported`: actor, program/category scope, `included_hidden_results`). Route throttled 10/min. | Owner additions 4. | DEV_A A.7 |
 | D-100 | **Reveal anyway** needs the tick and a recently confirmed password (`RevealWinnerAction` refuses an override without `$passwordConfirmed`; the screen sends the organizer to confirm). Item 5 (lazy-loading guard; `audit_events (organization_id, created_at)` index) was already in place (D-57, D-90) and is now pinned by a test. | Owner additions 5–6. | DEV_A A.3 |
+| D-101 | **Phone hash key has no APP_KEY fallback (amends D-86).** `PhoneHasher::key()` uses `VOTING_PHONE_HASH_KEY`; in production a missing key throws, and `AppServiceProvider::boot()` calls `PhoneHasher::ensureConfigured()` so the app refuses to start; elsewhere a fixed, public test key (`PhoneHasher::NON_PRODUCTION_KEY`) is used. | Owner review of Stage 2d, 2026-11-13. | DEV_A A.7 |
+| D-102 | **Archived nominees are off every leaderboard and podium.** `LeaderboardSource::standings()` and `RevealResult::forCategory()` skip archived nominees, so they appear on neither the public leaderboard, the stage screen nor the podium, and can't win (tested with an archived nominee holding the most votes). Their votes stay in `vote_records`, the recount, the audit and the export (marked archived). | Owner decision 2. | DEV_A A.3, A.8 |
+| D-103 | **Share images:** 404 for archived nominees, draft categories, and unpublished or archived programs; the route has its own limiter (`share-images`, `VOTING_RATE_SHARE_IMAGES_PER_IP`, 30/min per network) on top of `public-pages`. | Owner decision 3. | DEV_A A.6 |
+| D-104 | **Stage screen** (`/stage/{organization}/{program}`, `StageLeaderboard`, A.8). No login; published programs only; `throttle:stage` on page loads and `Throttle::attempt('stage')` on polls (`VOTING_RATE_STAGE_PER_IP`, 120/min per network); a throttled poll calls `skipRender()` and the page script suppresses Livewire's error dialog, so a failed poll keeps the last good screen. Livewire state is only the program id and a pinned slug; `StageScene` builds each render from the stored status: Open = top 8 bars from `LeaderboardCache` (fails closed), Embargoed = padlock text, Closed = "results coming up", Revealed = `RevealResult` podium and winners (ties = "Joint winners", every tied winner haloed). Locked and closed scenes carry only the category name (tested: no counts, names, codes, order or podium in HTML or the Livewire snapshot, including after going blind mid-session). Spotlight: `?category=` pin (non-draft), else the latest status transition, else the first non-draft category. Bars use `transform: scaleX` with `motion-reduce:transition-none`; three gold confetti bursts once per reveal, skipped under `prefers-reduced-motion`; Screen Wake Lock re-acquired on visibility change; basalt theme with viewport-scaled type for 16:9. Archived nominees never appear (D-102). | Stage 2e requirements. | DEV_A A.8 |
 | D-15 | Add `award_program_id` to `vote_transactions` and `vote_records`, index `vote_transactions(award_category_id, status)`, and use `scopeBindings()` for program → category → nominee routes. | Hot queries and event-scoped binding (prompt §6). | SHARED §2 |
 
 ---
@@ -398,6 +402,11 @@ Follow-ups: Turnstile for free votes (needs a plan decision), reserved org slugs
 - **Built:** D-94 (per-program grace), D-95 (screens), D-96 (launch checklist + Paystack key mode), D-97 (crop, share kit), D-98 (refund records), D-99 (export), D-100 (reveal password).
 - **Tests:** 758 → 846.
 - **Not verified:** screens not viewed in a real browser or phone; the crop editor's drag/zoom and clipboard copy are browser-only and untested; share images were checked for size and caching, not visually.
+
+### Stage 2e — Stage screen (`feature/phase-4-organizer-stage`) — done, awaiting owner's commits (D-61)
+- **Built:** D-101 (phone key), D-102 (archived off leaderboards/podium), D-103 (share image limits), D-104 (stage screen). Phase 4 (A.1–A.10) is complete.
+- **Tests:** 846 → 869.
+- **Not verified:** not viewed on a projector or real browser; Wake Lock, confetti, the reduced-motion behaviour and the suppressed error dialog are browser-only (their hooks are present in the markup/script and checked by a test).
 
 ## 4. Open Questions (blockers)
 

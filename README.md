@@ -112,6 +112,15 @@ confirmations):
 
 Share images use Instrument Sans (`resources/fonts`, SIL Open Font License, `resources/fonts/OFL.txt`).
 
+## Stage screen
+
+Open `https://<host>/stage/<organization>/<program>` on the projector (no login; 16:9, large type, dark theme).
+It follows the category whose status changed most recently (or pin one with `?category=<slug>`): live bars while
+open, a padlock while results are hidden or voting is closed, and the winner reveal (gold halo, confetti; joint
+winners on a tie) once revealed. Nothing about results is sent to the screen before they are public. It polls
+every 5 seconds; a failed poll keeps the last screen. The screen asks the browser to stay awake (Wake Lock),
+and confetti and bar animation are off when the device prefers reduced motion. Archived nominees never appear.
+
 ## Permissions
 
 Roles: **Owner**, **Admin**, **Staff** (per organization). The table below is generated from
@@ -252,8 +261,8 @@ Stage 3 (hardening) completes this list; the items below are already required.
   queued, so without a worker they are never sent.
 - [ ] **`VOTING_PHONE_HASH_KEY` set** (a random 32-byte value) before launch, and kept. Payer phone numbers
   are never stored, only an HMAC of them for exact search; **rotating the key breaks phone search on every
-  existing transaction** (old hashes stop matching). It falls back to `APP_KEY`, so rotating `APP_KEY` does
-  the same while this is unset.
+  existing transaction** (old hashes stop matching). Production refuses to boot without it; it never falls back
+  to `APP_KEY`.
 - [ ] **`NOMINEE_PHOTO_ORIGINAL_DISK` is private** (default `local`): uploaded originals are kept there for
   re-cropping and must never be web-readable.
 - [ ] **Paystack live keys in production** (`sk_live_…`); the launch checklist refuses to publish a paid
