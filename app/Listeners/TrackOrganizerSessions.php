@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Listeners;
 
 use App\Models\User;
+use App\Support\Audit;
 use App\Support\SessionEpoch;
 use Illuminate\Auth\Events\Login;
-use Illuminate\Support\Facades\Log;
 use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
 use Laravel\Fortify\Events\TwoFactorAuthenticationDisabled;
 
@@ -36,13 +36,19 @@ final class TrackOrganizerSessions
     {
         SessionEpoch::advance($event->user);
 
-        Log::channel('audit')->info('two_factor.enabled', ['user_id' => $event->user->id]);
+        Audit::record('two_factor.enabled', $event->user, $event->user, [
+            'before' => ['two_factor' => false],
+            'after' => ['two_factor' => true],
+        ]);
     }
 
     public function handleTwoFactorDisabled(TwoFactorAuthenticationDisabled $event): void
     {
         SessionEpoch::advance($event->user);
 
-        Log::channel('audit')->info('two_factor.disabled', ['user_id' => $event->user->id]);
+        Audit::record('two_factor.disabled', $event->user, $event->user, [
+            'before' => ['two_factor' => true],
+            'after' => ['two_factor' => false],
+        ]);
     }
 }

@@ -9,9 +9,9 @@ use App\Exceptions\Organizations\InvitationUnavailableException;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\User;
+use App\Support\Audit;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -86,13 +86,19 @@ final readonly class AcceptInvitationAction
             return $user;
         });
 
-        Log::channel('audit')->info('invitation.accepted', [
-            'organization_id' => $invitation->organization_id,
-            'invitation_id' => $invitation->id,
-            'user_id' => $user->id,
-            'role' => $invitation->role->value,
-            'new_account' => $existing === null,
-        ]);
+        Audit::record(
+            'invitation.accepted',
+            $user,
+            $invitation,
+            [
+                'before' => ['state' => 'pending'],
+                'after' => [
+                    'state' => 'accepted',
+                    'role' => $invitation->role->value,
+                ],
+            ],
+            ['new_account' => $existing === null],
+        );
 
         return $user;
     }

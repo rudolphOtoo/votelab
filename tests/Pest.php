@@ -92,9 +92,17 @@ function confirmPassword(): void
  */
 function captureAuditLog(): Monolog\Handler\TestHandler
 {
+    return captureLog('audit');
+}
+
+/**
+ * Route a log channel to an in-memory handler and return it.
+ */
+function captureLog(string $channel): Monolog\Handler\TestHandler
+{
     $handler = new Monolog\Handler\TestHandler();
-    config(['logging.channels.audit' => ['driver' => 'monolog', 'handler' => Monolog\Handler\NullHandler::class]]);
-    Illuminate\Support\Facades\Log::channel('audit')->getLogger()->setHandlers([$handler]);
+    config(["logging.channels.{$channel}" => ['driver' => 'monolog', 'handler' => Monolog\Handler\NullHandler::class]]);
+    Illuminate\Support\Facades\Log::channel($channel)->getLogger()->setHandlers([$handler]);
 
     return $handler;
 }

@@ -68,17 +68,14 @@ final readonly class CreateNomineeAction
         });
 
         if (CategoryPhase::of($category->status) === CategoryPhase::Live) {
-            Audit::record(
-                'nominee.created_while_live',
-                $actor,
-                ['award_category_id' => $category->id, 'nominee_id' => $nominee->id],
-                [],
-                [
+            Audit::record('nominee.created_while_live', $actor, $nominee, [
+                'before' => [],
+                'after' => [
                     'name' => $nominee->name,
                     'stage_name' => $nominee->stage_name,
                     'nominee_code' => $nominee->nominee_code,
                 ],
-            );
+            ]);
         }
 
         return $nominee;

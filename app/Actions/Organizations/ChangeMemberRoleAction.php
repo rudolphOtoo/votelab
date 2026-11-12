@@ -8,8 +8,8 @@ use App\Enums\OrganizationRole;
 use App\Exceptions\Organizations\LastOwnerException;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Audit;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Changes a member's role. Demoting the last owner is refused. Changes to one organization's
@@ -41,13 +41,13 @@ final readonly class ChangeMemberRoleAction
         });
 
         if ($previous !== null) {
-            Log::channel('audit')->info('membership.role_changed', [
-                'organization_id' => $organization->id,
-                'user_id' => $member->id,
-                'from' => $previous->value,
-                'to' => $role->value,
-                'by_user_id' => $actor->id,
-            ]);
+            Audit::record(
+                'membership.role_changed',
+                $actor,
+                $member,
+                ['before' => ['role' => $previous->value], 'after' => ['role' => $role->value]],
+                ['organization_id' => $organization->id],
+            );
         }
     }
 }

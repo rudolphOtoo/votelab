@@ -9,9 +9,9 @@ use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Models\User;
+use App\Support\Audit;
 use App\Support\Throttle;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Validator;
@@ -97,13 +97,15 @@ final readonly class InviteMemberAction
                 'expires_at' => now()->addHours((int) config('organizations.invitation_ttl_hours')),
             ])->save();
 
-            Log::channel('audit')->info('invitation.created', [
-                'organization_id' => $organization->id,
-                'invitation_id' => $invitation->id,
-                'role' => $role->value,
-                'invited_by_user_id' => $inviter?->id,
-                'superseded' => $superseded,
-            ]);
+            Audit::record(
+                'invitation.created',
+                $inviter,
+                $invitation,
+                ['before' => [], 'after' => ['role' => $role->value]],
+                [
+                    'superseded' => $superseded,
+                ],
+            );
 
             return $invitation;
         });

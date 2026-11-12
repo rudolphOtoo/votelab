@@ -37,13 +37,10 @@ final readonly class ArchiveNomineeAction
         if ($archived) {
             LeaderboardCache::forget($nominee->award_category_id);
 
-            Audit::record(
-                'nominee.archived',
-                $actor,
-                ['nominee_id' => $nominee->id, 'award_category_id' => $nominee->award_category_id],
-                ['archived' => false],
-                ['archived' => true],
-            );
+            Audit::record('nominee.archived', $actor, $nominee, [
+                'before' => ['archived' => false],
+                'after' => ['archived' => true],
+            ]);
         }
 
         return $nominee;

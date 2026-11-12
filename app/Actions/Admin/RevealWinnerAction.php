@@ -67,7 +67,7 @@ final readonly class RevealWinnerAction
                 throw new PendingPaymentsException($pending);
             }
 
-            RecountCategoryTallies::apply($locked->id);
+            RecountCategoryTallies::apply($locked->id, $actor);
             $locked->forceFill(['status' => CategoryStatus::Revealed])->save();
 
             CategoryStatusTransition::query()->create([
@@ -97,13 +97,12 @@ final readonly class RevealWinnerAction
         Audit::record(
             'category.revealed',
             $actor,
+            $revealed,
             [
-                'award_category_id' => $revealed->id,
-                'award_program_id' => $revealed->award_program_id,
-                'pending_payments_overridden' => $pending,
+                'before' => ['status' => CategoryStatus::Closed->value],
+                'after' => ['status' => CategoryStatus::Revealed->value, 'winner_ids' => $result->winnerIds],
             ],
-            ['status' => CategoryStatus::Closed->value],
-            ['status' => CategoryStatus::Revealed->value, 'winner_ids' => $result->winnerIds],
+            ['pending_payments_overridden' => $pending],
         );
 
         CategoryStatusChanged::dispatch($revealed, CategoryStatus::Closed, CategoryStatus::Revealed, $actor->id);
@@ -113,8 +112,10 @@ final readonly class RevealWinnerAction
     }
 
     /**
-     * Payments started at or before the close that are still awaiting Paystack's answer. The reveal screen
-     * (Stage 2d) shows this count.
+     * Payments that could still be credited if the reveal waited, and so block it (the 2d screen shows the
+     * count): still `pending` (an `expired` checkout was swept as unpaid), started at or before the close, and
+     * started within the last close_grace_minutes (an older unfinished checkout counts as abandoned) — and
+     * only while the grace window since the close is still running. Past the cap nothing blocks.
      */
     public static function pendingPaymentsCount(AwardCategory $category): int
     {
@@ -122,10 +123,18 @@ final readonly class RevealWinnerAction
             return 0;
         }
 
+        $grace = (int) config('voting.close_grace_minutes');
+        $now = now();
+
+        if ($now->greaterThanOrEqualTo($category->closed_at->addMinutes($grace))) {
+            return 0;
+        }
+
         return VoteTransaction::query()
             ->where('award_category_id', $category->id)
-            ->whereIn('status', TransactionStatus::awaitingPayment())
+            ->where('status', TransactionStatus::Pending)
             ->where('created_at', '<=', $category->closed_at)
+            ->where('created_at', '>', $now->subMinutes($grace))
             ->count();
     }
 }

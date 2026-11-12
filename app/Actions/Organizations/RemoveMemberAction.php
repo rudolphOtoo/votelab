@@ -8,8 +8,8 @@ use App\Enums\OrganizationRole;
 use App\Exceptions\Organizations\LastOwnerException;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Audit;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Removes a member, or lets a member leave (actor = member). Removing or leaving as the last owner is
@@ -41,12 +41,13 @@ final readonly class RemoveMemberAction
         });
 
         if ($removed !== null) {
-            Log::channel('audit')->info($actor->is($member) ? 'membership.left' : 'membership.removed', [
-                'organization_id' => $organization->id,
-                'user_id' => $member->id,
-                'role' => $removed->value,
-                'by_user_id' => $actor->id,
-            ]);
+            Audit::record(
+                $actor->is($member) ? 'membership.left' : 'membership.removed',
+                $actor,
+                $member,
+                ['before' => ['role' => $removed->value], 'after' => ['role' => null]],
+                ['organization_id' => $organization->id],
+            );
         }
     }
 }

@@ -6,7 +6,7 @@ namespace App\Actions\Organizations;
 
 use App\Models\OrganizationInvitation;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
+use App\Support\Audit;
 
 /**
  * Withdraws a pending invitation; its link stops working at once. Revoking a used, expired or already
@@ -26,10 +26,9 @@ final readonly class RevokeInvitationAction
             ]) === 1;
 
         if ($revoked) {
-            Log::channel('audit')->info('invitation.revoked', [
-                'organization_id' => $invitation->organization_id,
-                'invitation_id' => $invitation->id,
-                'revoked_by_user_id' => $actor->id,
+            Audit::record('invitation.revoked', $actor, $invitation, [
+                'before' => ['state' => 'pending'],
+                'after' => ['state' => 'revoked'],
             ]);
         }
 

@@ -86,13 +86,10 @@ final readonly class UpdateOrganizationSettingsAction
         $before = array_intersect_key($organization->only(array_keys($changed)), $changed);
         $organization->forceFill($changed)->save();
 
-        Audit::record(
-            'organization.settings_changed',
-            $actor,
-            ['organization_id' => $organization->id],
-            $before,
-            $changed,
-        );
+        Audit::record('organization.settings_changed', $actor, $organization, [
+            'before' => $before,
+            'after' => $changed,
+        ]);
 
         if ($sensitive !== []) {
             self::notifyOwners($organization, $actor, $before, $sensitive);

@@ -122,6 +122,7 @@ it('refuses staff and outsiders', function (): void {
 });
 
 it('refuses while payments started before the close are still pending, and says how many', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
     [$category, $nominees, $admin] = closedCategory();
     VoteTransaction::factory()
         ->for($nominees[0])
@@ -142,6 +143,7 @@ it('refuses while payments started before the close are still pending, and says 
 });
 
 it('reveals with an explicit override; those payments are refunded, not counted, when confirmed', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
     $gateway = fakeGateway();
     [$category, $nominees, $admin] = closedCategory([10, 25]);
     $late = VoteTransaction::factory()->for($nominees[0])->create([
@@ -171,4 +173,96 @@ it('audits the reveal with the winners', function (): void {
     reveal($category, $admin);
 
     expect($audit->hasInfoThatContains('category.revealed'))->toBeTrue();
+});
+
+it('does not let an abandoned checkout block the reveal', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
+    [$category, $nominees, $admin] = closedCategory(); // closed at 20:00
+    // Started 40 minutes ago and never finished: abandoned, even though the close was only minutes ago.
+    Carbon::setTestNow('2026-11-20 20:05:00');
+    VoteTransaction::factory()->for($nominees[0])->create(['created_at' => now()->subMinutes(40)]);
+
+    expect(RevealWinnerAction::pendingPaymentsCount($category))
+        ->toBe(0)
+        ->and(reveal($category, $admin)->newlyRevealed)
+        ->toBeTrue();
+});
+
+it('stops blocking once the 30-minute cap after the close has passed', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
+    [$category, $nominees, $admin] = closedCategory(); // closed at 20:00
+    VoteTransaction::factory()->for($nominees[0])->create(['created_at' => now()->subMinute()]);
+    expect(RevealWinnerAction::pendingPaymentsCount($category))->toBe(1);
+
+    Carbon::setTestNow('2026-11-20 20:30:00');
+
+    expect(RevealWinnerAction::pendingPaymentsCount($category))
+        ->toBe(0)
+        ->and(reveal($category, $admin)->newlyRevealed)
+        ->toBeTrue();
+});
+
+it('does not count checkouts the sweeper already expired', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
+    [$category, $nominees] = closedCategory();
+    VoteTransaction::factory()->for($nominees[0])->create([
+        'created_at' => now()->subMinute(),
+        'status' => TransactionStatus::Expired,
+    ]);
+
+    expect(RevealWinnerAction::pendingPaymentsCount($category))->toBe(0);
+});
+
+it('alerts on drift: an error-level log and one audit event per nominee, before and after', function (): void {
+    $voting = captureLog('voting');
+    [$category, $nominees, $admin] = closedCategory([10, 25, 5]);
+    Nominee::query()->whereKey($nominees[0]->id)->update(['votes_count' => 99]);
+    Nominee::query()->whereKey($nominees[2]->id)->update(['votes_count' => 4]);
+
+    reveal($category, $admin);
+
+    expect($voting->hasErrorThatContains('tally.drift'))
+        ->toBeTrue()
+        ->and(collect($voting->getRecords())->where('message', 'tally.drift')->count())
+        ->toBe(2);
+
+    $events = App\Models\AuditEvent::query()->where('action', 'tally.drift_corrected')->orderBy('subject_id')->get();
+    expect($events)
+        ->toHaveCount(2)
+        ->and($events->pluck('subject_id')->all())
+        ->toBe([$nominees[0]->id, $nominees[2]->id])
+        ->and($events[0]->before)
+        ->toBe(['votes_count' => 99])
+        ->and($events[0]->after)
+        ->toBe(['votes_count' => 10])
+        ->and($events[0]->actor_user_id)
+        ->toBe($admin->id)
+        ->and($events[0]->organization_id)
+        ->toBe($category->organization_id);
+});
+
+it('raises no drift alert when the counters match the ledger', function (): void {
+    $voting = captureLog('voting');
+    [$category, , $admin] = closedCategory();
+
+    reveal($category, $admin);
+
+    expect($voting->hasErrorRecords())
+        ->toBeFalse()
+        ->and(App\Models\AuditEvent::query()->where('action', 'like', 'tally.%')->count())
+        ->toBe(0);
+});
+
+it('reports drift without fixing it on a dry run (for votes:rebuild-tallies)', function (): void {
+    [$category, $nominees] = closedCategory([10, 25]);
+    Nominee::query()->whereKey($nominees[1]->id)->update(['votes_count' => 30]);
+
+    $drift = App\Actions\Admin\RecountCategoryTallies::apply($category->id, dryRun: true);
+
+    expect($drift)
+        ->toBe([$nominees[1]->id => ['counter' => 30, 'ledger' => 25]])
+        ->and($nominees[1]->fresh()?->votes_count)
+        ->toBe(30)
+        ->and(App\Models\AuditEvent::query()->where('action', 'tally.drift_found')->count())
+        ->toBe(1);
 });

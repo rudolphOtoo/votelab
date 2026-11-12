@@ -8,7 +8,7 @@ use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\OrganizationInvitation;
 use App\Rules\OrganizationSlug;
-use Illuminate\Support\Facades\Log;
+use App\Support\Audit;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -43,11 +43,13 @@ final readonly class ProvisionOrganizationAction
         $created = $organization->wasRecentlyCreated;
 
         if ($created) {
-            Log::channel('audit')->info('organization.created', [
-                'organization_id' => $organization->id,
-                'slug' => $organization->slug,
-                'via' => 'cli',
-            ]);
+            Audit::record(
+                'organization.created',
+                null,
+                $organization,
+                ['before' => [], 'after' => ['slug' => $organization->slug]],
+                ['via' => 'cli'],
+            );
         }
 
         $member = $organization->users()->where('email', $ownerEmail)->first();

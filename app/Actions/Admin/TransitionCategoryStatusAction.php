@@ -77,13 +77,9 @@ final readonly class TransitionCategoryStatusAction
         Audit::record(
             'category.status_changed',
             $actor,
-            [
-                'award_category_id' => $updated->id,
-                'award_program_id' => $updated->award_program_id,
-                'reason' => $reason,
-            ],
-            ['status' => $from->value],
-            ['status' => $to->value],
+            $updated,
+            ['before' => ['status' => $from->value], 'after' => ['status' => $to->value]],
+            ['reason' => $reason],
         );
 
         CategoryStatusChanged::dispatch($updated, $from, $to, $actor->id);

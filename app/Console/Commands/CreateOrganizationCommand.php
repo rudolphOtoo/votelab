@@ -6,8 +6,8 @@ namespace App\Console\Commands;
 
 use App\Actions\Organizations\ProvisionOrganizationAction;
 use App\Actions\Organizations\ProvisionOutcome;
+use App\Support\Audit;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -51,11 +51,16 @@ final class CreateOrganizationCommand extends Command
 
         $organization = $result['organization'];
 
-        Log::channel('audit')->info('organizations.create_command', [
-            'organization_id' => $organization->id,
-            'created' => $result['created'],
-            'outcome' => $result['outcome']->value,
-        ]);
+        Audit::record(
+            'organizations.create_command',
+            null,
+            $organization,
+            [],
+            [
+                'created' => $result['created'],
+                'outcome' => $result['outcome']->value,
+            ],
+        );
 
         $this->info(
             $result['created']
