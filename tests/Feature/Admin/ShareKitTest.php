@@ -121,3 +121,21 @@ it('previews a shared deep link with Open Graph tags and no counts, even while r
         expect($html)->not->toContain('975311')->not->toContain('975,311');
     }
 })->with([CategoryStatus::Open, CategoryStatus::Embargoed]);
+
+it('serves no image for an archived program', function (): void {
+    sharedNominee();
+    AwardProgram::query()->update(['status' => ProgramStatus::Archived]);
+
+    $this->get('/org/awards/AM27/share/og')->assertNotFound();
+});
+
+it('rate limits the image route per network', function (): void {
+    config(['voting.rate_limits.share_images_per_ip' => 3]);
+    sharedNominee();
+
+    foreach (range(1, 3) as $_) {
+        $this->get('/org/awards/AM27/share/og')->assertOk();
+    }
+
+    $this->get('/org/awards/AM27/share/og')->assertTooManyRequests();
+});

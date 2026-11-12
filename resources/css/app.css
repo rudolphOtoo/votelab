@@ -16,3 +16,13 @@
 [x-cloak] {
     display: none !important;
 }
+
+/* Stage winner reveal: spring to 1.08 (disabled for reduced motion via motion-safe in the markup). */
+@keyframes stage-win {
+    0% { transform: scale(0.98); }
+    100% { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stage-bar { transition: none !important; }
+}

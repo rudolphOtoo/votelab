@@ -19,6 +19,7 @@ use App\Livewire\Admin\ResultsAuditor;
 use App\Livewire\Auth\AcceptInvitation;
 use App\Livewire\Public\CategoryShow;
 use App\Livewire\Public\ProgramLanding;
+use App\Livewire\Stage\StageLeaderboard;
 use App\Support\DedicatedSite;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +37,12 @@ Route::get('/payments/callback', PaymentCallbackController::class)->middleware('
  | organization slug (config/organizations.php), so it can never be shadowed by a public page.
  |
  */
+
+// Projector screen: no login, rate limited, published programs only (A.8).
+Route::livewire('/stage/{organization:slug}/{awardProgram:slug}', StageLeaderboard::class)
+    ->scopeBindings()
+    ->middleware('throttle:stage')
+    ->name('stage');
 
 Route::livewire('/invitations/{invitation}/accept', AcceptInvitation::class)
     ->middleware(['signed', 'throttle:30,1'])
@@ -120,6 +127,9 @@ Route::middleware([EnsureVoterCookie::class, 'throttle:public-pages'])->group(st
             Route::get(
                 '/{organization:slug}/{awardProgram:slug}/{nominee:nominee_code}/share/{format}',
                 ShareImageController::class,
-            )->whereIn('format', ['og', 'square', 'story'])->name('public.nominee.share');
+            )
+                ->whereIn('format', ['og', 'square', 'story'])
+                ->middleware('throttle:share-images')
+                ->name('public.nominee.share');
         });
 });
