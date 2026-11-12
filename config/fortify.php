@@ -163,7 +163,7 @@ return [
      */
 
     'features' => [
-        Features::registration(),
+        // No public sign-up: organizers join through invitations only.
         Features::resetPasswords(),
         // Features::emailVerification(),
         Features::updateProfileInformation(),
