@@ -310,3 +310,37 @@ it('increments counters atomically in SQL rather than read-modify-write', functi
         ))
         ->toBeTrue();
 });
+
+it('writes the ledger row before the derived counter, inside one transaction', function (): void {
+    $transaction = pendingOrder(quantity: 3);
+    $queries = [];
+    DB::listen(static function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+
+    fulfil($transaction);
+
+    $position = static fn(string $prefix): int|false => collect($queries)->search(
+        static fn(string $sql): bool => str_starts_with($sql, $prefix),
+    );
+
+    expect($position('insert into "vote_records"'))
+        ->toBeInt()
+        ->and($position('update "nominees"'))
+        ->toBeInt()
+        ->toBeGreaterThan($position('insert into "vote_records"'));
+});
+
+it('leaves the counter and the status untouched when the ledger insert fails', function (): void {
+    $transaction = pendingOrder(quantity: 7);
+    VoteRecord::creating(static fn(): never => throw new RuntimeException('ledger unavailable'));
+
+    expect(fn() => fulfil($transaction))->toThrow(RuntimeException::class, 'ledger unavailable');
+
+    expect($transaction->fresh()?->status)
+        ->toBe(TransactionStatus::Pending)
+        ->and($transaction->nominee->fresh()?->votes_count)
+        ->toBe(0)
+        ->and(VoteRecord::query()->count())
+        ->toBe(0);
+});

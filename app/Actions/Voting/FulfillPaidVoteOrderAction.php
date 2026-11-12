@@ -124,8 +124,6 @@ final readonly class FulfillPaidVoteOrderAction
                 return false;
             }
 
-            Nominee::query()->whereKey($transaction->nominee_id)->increment('votes_count', $transaction->quantity);
-
             VoteRecord::query()->create([
                 'organization_id' => $transaction->organization_id,
                 'award_program_id' => $transaction->award_program_id,
@@ -136,6 +134,10 @@ final readonly class FulfillPaidVoteOrderAction
                 'quantity' => $transaction->quantity,
                 'cast_at' => $now,
             ]);
+
+            // The derived counter is written last, after the ledger row (as in CastFreeVoteAction): the
+            // nominee row lock is held for the shortest time, and a refused ledger insert never touches it.
+            Nominee::query()->whereKey($transaction->nominee_id)->increment('votes_count', $transaction->quantity);
 
             return true;
         });
