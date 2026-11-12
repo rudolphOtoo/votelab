@@ -43,7 +43,7 @@
                             wire:navigate
                             class="flex h-full flex-col rounded-[var(--radius-lg)] border border-hairline bg-surface p-5 transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focused"
                         >
-                            <x-public.status-pill :status="$category->status" class="self-start" />
+                            <x-ui.status-pill :status="$category->status" class="self-start" />
                             <span class="mt-3 text-base font-semibold text-ink">{{ $category->name }}</span>
                             <span class="mt-1 text-sm text-ink-secondary">
                                 {{ trans_choice(':count nominee|:count nominees', $category->nominees_count) }}

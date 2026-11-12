@@ -77,6 +77,7 @@ return [
         'confirm-password',
         'css',
         'dashboard',
+        'dev',
         'email',
         'favicon',
         'forgot-password',

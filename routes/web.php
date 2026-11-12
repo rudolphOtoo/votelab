@@ -39,6 +39,9 @@ Route::get('/payments/callback', PaymentCallbackController::class)->middleware('
  |
  */
 
+// Design-system component gallery: outside production only (the component returns 404 in production).
+Route::livewire('/dev/components', App\Livewire\Dev\ComponentGallery::class)->name('dev.components');
+
 // Health for uptime monitors (D-109): JSON, 503 when votes can't be taken safely.
 Route::get('/health', HealthController::class)->middleware('throttle:health')->name('health');
 

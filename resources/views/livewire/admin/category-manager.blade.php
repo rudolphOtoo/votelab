@@ -42,7 +42,7 @@
                     <div class="mr-auto min-w-0">
                         <p class="font-medium text-ink">{{ $category->name }}</p>
                         <p class="mt-1 flex flex-wrap items-center gap-2 text-sm text-ink-secondary">
-                            <x-public.status-pill :status="$category->status" />
+                            <x-ui.status-pill :status="$category->status" />
                             {{ $category->voting_mode->label() }} · {{ \App\Support\Money::format($category->price_per_vote) }} · {{ $category->nominees_count }} nominee(s)
                         </p>
                     </div>

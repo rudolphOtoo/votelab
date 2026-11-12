@@ -9,7 +9,7 @@
     </nav>
 
     <header class="py-8">
-        <x-public.status-pill :status="$category->status" />
+        <x-ui.status-pill :status="$category->status" />
         <h1 class="mt-3 text-2xl font-semibold tracking-tight text-ink sm:text-4xl">{{ $category->name }}</h1>
         @if ($category->description)
             <p class="mt-2 max-w-2xl text-ink-secondary">{{ $category->description }}</p>

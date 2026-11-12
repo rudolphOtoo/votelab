@@ -22,7 +22,7 @@
             <section class="mb-6" aria-labelledby="results-{{ $block['category']->id }}">
                 <div class="flex flex-wrap items-center gap-2">
                     <h2 id="results-{{ $block['category']->id }}" class="mr-auto text-lg font-semibold text-ink">{{ $block['category']->name }}</h2>
-                    <x-public.status-pill :status="$block['category']->status" />
+                    <x-ui.status-pill :status="$block['category']->status" />
                     @if ($canExport)<a href="{{ route('dashboard.programs.export', [$program, 'category' => $block['category']->id]) }}" class="min-h-11 content-center text-sm text-ink underline underline-offset-4">CSV</a>@endif
                 </div>
                 @if (!$block['visible'])

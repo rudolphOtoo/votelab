@@ -130,8 +130,8 @@
             @if ($notice)
                 <p @class([
                     'mt-4 rounded-[var(--radius-md)] p-3 text-sm',
-                    'bg-success/10 text-success' => $noticeTone === 'success',
-                    'bg-warning/10 text-warning' => $noticeTone === 'warning',
+                    'bg-success-bg text-success-fg' => $noticeTone === 'success',
+                    'bg-warning-bg text-warning-fg' => $noticeTone === 'warning',
                     'bg-subtle text-ink' => $noticeTone === 'info',
                 ])>{{ $notice }}</p>
             @endif
