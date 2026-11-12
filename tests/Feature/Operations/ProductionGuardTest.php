@@ -40,6 +40,7 @@ it('refuses each unsafe setting', function (array $override, string $problem): v
     'no Paystack secret' => [['payments.providers.paystack.secret_key' => ''], 'PAYSTACK_SECRET_KEY is missing'],
     'test Paystack key' => [['payments.providers.paystack.secret_key' => 'sk_test_x'], 'live Paystack keys'],
     'no phone hash key' => [['voting.phone_hash_key' => null], 'VOTING_PHONE_HASH_KEY'],
+    'PayZephyr transaction log on' => [['payments.logging.enabled' => true], 'PAYMENTS_LOGGING_ENABLED must be false'],
 ]);
 
 it('lists every problem at once', function (): void {

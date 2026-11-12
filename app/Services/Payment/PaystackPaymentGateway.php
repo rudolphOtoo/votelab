@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 use KenDeNigerian\PayZephyr\Exceptions\PaymentException;
 use KenDeNigerian\PayZephyr\PaymentManager;
 use LogicException;
+use Throwable;
 
 /**
  * Paystack Hosted Checkout. Verification and webhook signatures go through PayZephyr, pinned to
@@ -86,6 +87,13 @@ final readonly class PaystackPaymentGateway implements PaymentGateway
             $result = $this->payments->verify($reference, self::PROVIDER);
         } catch (PaymentException $e) {
             throw new PaymentGatewayException('Paystack verification failed.', previous: $e);
+        } catch (Throwable $e) {
+            // Anything else inside PayZephyr (e.g. its optional transaction log hitting a missing table,
+            // D-122) is a configuration fault, not a payment outcome: report it, and let callers treat it
+            // like Paystack being unreachable, so a voter's result page shows the payment as it stands.
+            report($e);
+
+            throw new PaymentGatewayException('Paystack verification could not run.', previous: $e);
         }
 
         $status = match (true) {

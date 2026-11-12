@@ -15,7 +15,8 @@ use RuntimeException;
  *   rebuilds depend on them; `array` and `file` don't qualify);
  * - APP_DEBUG is on (stack traces would leak);
  * - the Paystack secret is missing, or isn't a live key (PaystackKeyMode);
- * - VOTING_PHONE_HASH_KEY is missing (D-101).
+ * - VOTING_PHONE_HASH_KEY is missing (D-101);
+ * - PayZephyr's transaction log is on (it needs a table VoteLab doesn't create; D-122).
  */
 final class ProductionGuard
 {
@@ -48,6 +49,10 @@ final class ProductionGuard
 
         if (!is_string(config('voting.phone_hash_key')) || config('voting.phone_hash_key') === '') {
             $problems[] = 'VOTING_PHONE_HASH_KEY is missing.';
+        }
+
+        if ((bool) config('payments.logging.enabled')) {
+            $problems[] = 'PAYMENTS_LOGGING_ENABLED must be false: VoteLab keeps its own ledger and has no payment_transactions table.';
         }
 
         return $problems;
