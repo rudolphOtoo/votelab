@@ -116,6 +116,24 @@ final class FakePaymentGateway implements PaymentGateway
     }
 
     /**
+     * Make an already reported verification also carry the payer's phone number.
+     */
+    public function withPayerPhone(string $reference, string $phone): self
+    {
+        $reported = $this->verifications[$reference];
+        $this->verifications[$reference] = new PaymentVerification(
+            reference: $reported->reference,
+            status: $reported->status,
+            amount: $reported->amount,
+            currency: $reported->currency,
+            providerStatus: $reported->providerStatus,
+            payerPhone: $phone,
+        );
+
+        return $this;
+    }
+
+    /**
      * Run a callback while the verification is "in flight", e.g. to simulate a racing worker.
      *
      * @param  Closure(string): void  $callback

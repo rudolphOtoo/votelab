@@ -17,6 +17,10 @@ final readonly class PaymentVerification
         public ?string $providerStatus = null,
         public ?string $channel = null,
         public ?string $paidAt = null,
+        // The payer's phone number, if Paystack gave one. Never stored: FulfillPaidVoteOrderAction keeps only
+        // a keyed hash and the last three digits (D-86).
+        #[\SensitiveParameter]
+        public ?string $payerPhone = null,
     ) {}
 
     public function isSuccessful(): bool

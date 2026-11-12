@@ -37,6 +37,7 @@ final class CategoryShow extends Component
         ?Nominee $nominee = null,
     ): void {
         abort_unless($awardProgram->organization_id === $organization->id && $awardProgram->status->isPublic(), 404);
+        abort_if($nominee?->isArchived() === true, 404); // Withdrawn nominees have no public page.
 
         $category ??= $nominee?->awardCategory()->first();
 
@@ -53,7 +54,11 @@ final class CategoryShow extends Component
 
     public function select(int $nomineeId): void
     {
-        $belongs = Nominee::query()->whereKey($nomineeId)->where('award_category_id', $this->categoryId)->exists();
+        $belongs = Nominee::query()
+            ->active()
+            ->whereKey($nomineeId)
+            ->where('award_category_id', $this->categoryId)
+            ->exists();
 
         $this->selectedNomineeId = $belongs ? $nomineeId : null;
     }
@@ -77,6 +82,7 @@ final class CategoryShow extends Component
 
         $nominees = $category
             ->nominees()
+            ->active()
             ->select([
                 'id',
                 'award_category_id',

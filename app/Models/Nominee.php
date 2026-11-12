@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Database\Factories\NomineeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -75,6 +76,22 @@ final class Nominee extends Model
         return $this->hasMany(VoteRecord::class);
     }
 
+    public function isArchived(): bool
+    {
+        return $this->archived_at !== null;
+    }
+
+    /**
+     * Nominees shown to the public and open to new votes.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->whereNull('archived_at');
+    }
+
     public function displayName(): string
     {
         return $this->stage_name ?? $this->name;
@@ -87,6 +104,7 @@ final class Nominee extends Model
     {
         return [
             'votes_count' => 'integer',
+            'archived_at' => 'datetime',
         ];
     }
 }

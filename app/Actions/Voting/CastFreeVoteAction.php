@@ -40,6 +40,10 @@ final readonly class CastFreeVoteAction
             throw FreeVoteUnavailableException::votingNotOpen();
         }
 
+        if ($nominee->isArchived()) {
+            throw FreeVoteUnavailableException::nomineeWithdrawn();
+        }
+
         if (!$category->voting_mode->allowsFreeVotes()) {
             throw FreeVoteUnavailableException::freeVotesNotAccepted();
         }

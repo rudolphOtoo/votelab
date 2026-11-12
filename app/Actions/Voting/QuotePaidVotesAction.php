@@ -32,6 +32,10 @@ final readonly class QuotePaidVotesAction
             throw CheckoutUnavailableException::votingNotOpen();
         }
 
+        if ($nominee->isArchived()) {
+            throw CheckoutUnavailableException::nomineeWithdrawn();
+        }
+
         if (!$category->voting_mode->allowsPaidVotes()) {
             throw CheckoutUnavailableException::paidVotesNotAccepted();
         }

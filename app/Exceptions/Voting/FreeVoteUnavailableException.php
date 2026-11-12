@@ -11,6 +11,11 @@ use RuntimeException;
  */
 final class FreeVoteUnavailableException extends RuntimeException
 {
+    public static function nomineeWithdrawn(): self
+    {
+        return new self('This nominee is no longer taking votes.');
+    }
+
     public static function votingNotOpen(): self
     {
         return new self('Voting is not open for this category.');

@@ -233,27 +233,27 @@ it('credits embargoed categories', function (): void {
     expect(fulfil($transaction)->newlyCredited)->toBeTrue();
 });
 
-it('credits a payment started before close and verified inside the grace window', function (): void {
-    config(['voting.close_grace_minutes' => 5]);
+it('credits a payment started before close and verified inside the 30-minute grace window', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
     Carbon::setTestNow('2026-10-30 20:00:00');
     $transaction = pendingOrder(quantity: 6);
 
     Carbon::setTestNow('2026-10-30 20:01:00');
     $transaction->awardCategory->forceFill(['status' => CategoryStatus::Closed, 'closed_at' => now()])->save();
 
-    Carbon::setTestNow('2026-10-30 20:05:59');
+    Carbon::setTestNow('2026-10-30 20:30:59');
     expect(fulfil($transaction)->newlyCredited)->toBeTrue();
 });
 
-it('records paid_uncredited when the payment is verified after the grace window', function (): void {
-    config(['voting.close_grace_minutes' => 5]);
+it('records paid_uncredited when the payment is verified after the 30-minute cap', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
     Carbon::setTestNow('2026-10-30 20:00:00');
     $transaction = pendingOrder(quantity: 6);
 
     Carbon::setTestNow('2026-10-30 20:01:00');
     $transaction->awardCategory->forceFill(['status' => CategoryStatus::Closed, 'closed_at' => now()])->save();
 
-    Carbon::setTestNow('2026-10-30 20:06:00');
+    Carbon::setTestNow('2026-10-30 20:31:00');
     fulfil($transaction);
 
     $transaction->refresh();
@@ -266,6 +266,24 @@ it('records paid_uncredited when the payment is verified after the grace window'
         ->toBeNull()
         ->and($transaction->nominee->votes_count)
         ->toBe(0);
+});
+
+it('records paid_uncredited when the category is revealed before the payment is confirmed, even inside the cap', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
+    Carbon::setTestNow('2026-10-30 20:00:00');
+    $transaction = pendingOrder(quantity: 6);
+
+    Carbon::setTestNow('2026-10-30 20:01:00');
+    $transaction->awardCategory->forceFill(['status' => CategoryStatus::Closed, 'closed_at' => now()])->save();
+
+    Carbon::setTestNow('2026-10-30 20:05:00');
+    $transaction->awardCategory->forceFill(['status' => CategoryStatus::Revealed])->save();
+    fulfil($transaction);
+
+    expect($transaction->fresh()?->status)
+        ->toBe(TransactionStatus::PaidUncredited)
+        ->and($transaction->fresh()?->status_reason)
+        ->toBe('category_revealed');
 });
 
 it('records paid_uncredited for a checkout started after the category closed', function (): void {
@@ -343,4 +361,68 @@ it('leaves the counter and the status untouched when the ledger insert fails', f
         ->toBe(0)
         ->and(VoteRecord::query()->count())
         ->toBe(0);
+});
+
+it('credits a payment started before its nominee was archived', function (): void {
+    Carbon::setTestNow('2026-10-30 20:00:00');
+    $transaction = pendingOrder(quantity: 3);
+
+    Carbon::setTestNow('2026-10-30 20:02:00');
+    $transaction->nominee->forceFill(['archived_at' => now()])->save();
+
+    expect(fulfil($transaction)->newlyCredited)->toBeTrue()->and($transaction->nominee->fresh()?->votes_count)->toBe(3);
+});
+
+it('records paid_uncredited for a checkout started after its nominee was archived', function (): void {
+    Carbon::setTestNow('2026-10-30 20:00:00');
+    $transaction = pendingOrder(quantity: 3);
+    $transaction->nominee->forceFill(['archived_at' => now()->subMinute()])->save();
+
+    fulfil($transaction);
+
+    expect($transaction->fresh()?->status)
+        ->toBe(TransactionStatus::PaidUncredited)
+        ->and($transaction->fresh()?->status_reason)
+        ->toBe('nominee_archived')
+        ->and($transaction->nominee->fresh()?->votes_count)
+        ->toBe(0);
+});
+
+it('keeps only a keyed hash and the last three digits of the payer phone', function (): void {
+    config(['voting.phone_hash_key' => 'test-phone-key']);
+    $transaction = pendingOrder();
+    $this->gateway->withPayerPhone($transaction->payment_reference, '024 123 4567');
+
+    fulfil($transaction);
+
+    $stored = $transaction->fresh();
+    expect($stored?->phone_last3)
+        ->toBe('567')
+        ->and($stored?->phone_hash)
+        ->toBe(hash_hmac('sha256', '233241234567', 'test-phone-key'))
+        ->and(json_encode($stored?->getAttributes(), JSON_THROW_ON_ERROR))
+        ->not->toContain('241234567');
+});
+
+it('stores the phone digest on settled (uncredited) payments too, and nothing when no phone is given', function (): void {
+    $settled = pendingOrder(status: CategoryStatus::Revealed);
+    $this->gateway->withPayerPhone($settled->payment_reference, '+233201112222');
+    fulfil($settled);
+
+    $plain = pendingOrder();
+    fulfil($plain);
+
+    expect($settled->fresh()?->phone_last3)
+        ->toBe('222')
+        ->and($plain->fresh()?->phone_hash)
+        ->toBeNull()
+        ->and($plain->fresh()?->phone_last3)
+        ->toBeNull();
+});
+
+it('ships a 30-minute close grace default (D-85)', function (): void {
+    expect((string) file_get_contents(config_path('voting.php')))
+        ->toContain("env('VOTING_CLOSE_GRACE_MINUTES', 30)")
+        ->and((string) file_get_contents(base_path('.env.example')))
+        ->toContain('VOTING_CLOSE_GRACE_MINUTES=30');
 });

@@ -12,6 +12,7 @@ use App\Exceptions\PaymentGatewayException;
 use App\Models\Nominee;
 use App\Models\VoteRecord;
 use App\Models\VoteTransaction;
+use App\Services\Security\PhoneHasher;
 use App\Support\VoteKeys;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -34,6 +35,7 @@ final readonly class FulfillPaidVoteOrderAction
     public function __construct(
         private PaymentGateway $gateway,
         private DecidePaymentSettlement $decide,
+        private PhoneHasher $phones,
     ) {}
 
     /**
@@ -87,10 +89,16 @@ final readonly class FulfillPaidVoteOrderAction
             'verified_currency' => $verification->currency,
         ];
 
-        $decision = $this->decide->execute($transaction, $verification, $transaction->awardCategory()->firstOrFail());
+        $decision = $this->decide->execute(
+            $transaction,
+            $verification,
+            $transaction->awardCategory()->firstOrFail(),
+            $transaction->nominee()->firstOrFail(),
+        );
+        $phone = $this->phones->digest($verification->payerPhone) ?? [];
 
         if ($decision->settleAs !== null) {
-            return $this->settle($transaction, $decision->settleAs, $decision->reason, $context);
+            return $this->settle($transaction, $decision->settleAs, $decision->reason, $context, $phone);
         }
 
         if (!$decision->credit) {
@@ -99,15 +107,16 @@ final readonly class FulfillPaidVoteOrderAction
             return new FulfilmentResult($transaction);
         }
 
-        return $this->credit($transaction, $context);
+        return $this->credit($transaction, $context, $phone);
     }
 
     /**
      * @param  array<string, mixed>  $context
+     * @param  array<string, string>  $phone  phone_hash and phone_last3, when the provider gave a number
      */
-    private function credit(VoteTransaction $transaction, array $context): FulfilmentResult
+    private function credit(VoteTransaction $transaction, array $context, array $phone): FulfilmentResult
     {
-        $credited = DB::transaction(static function () use ($transaction): bool {
+        $credited = DB::transaction(static function () use ($transaction, $phone): bool {
             $now = now();
 
             $affected = VoteTransaction::query()
@@ -118,6 +127,7 @@ final readonly class FulfillPaidVoteOrderAction
                     'status_reason' => null,
                     'verified_at' => $now,
                     'credited_at' => $now,
+                    ...$phone,
                 ]);
 
             if ($affected !== 1) {
@@ -172,12 +182,14 @@ final readonly class FulfillPaidVoteOrderAction
      * Settle a pending transaction without crediting votes.
      *
      * @param  array<string, mixed>  $context
+     * @param  array<string, string>  $phone
      */
     private function settle(
         VoteTransaction $transaction,
         TransactionStatus $status,
         string $reason,
         array $context,
+        array $phone = [],
     ): FulfilmentResult {
         $affected = VoteTransaction::query()
             ->whereKey($transaction->id)
@@ -186,6 +198,7 @@ final readonly class FulfillPaidVoteOrderAction
                 'status' => $status,
                 'status_reason' => $reason,
                 'verified_at' => now(),
+                ...$phone,
             ]);
 
         $transaction->refresh();

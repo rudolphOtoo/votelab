@@ -39,7 +39,7 @@ final class ProgramLanding extends Component
             'categories' => $program
                 ->categories()
                 ->where('status', '!=', CategoryStatus::Draft)
-                ->withCount('nominees')
+                ->withCount(['nominees' => static fn($query) => $query->whereNull('archived_at')])
                 ->get(),
         ])->title($program->title);
     }

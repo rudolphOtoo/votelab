@@ -31,13 +31,15 @@ return [
      | Close Grace Window
      |--------------------------------------------------------------------------
      |
-     | Minutes after a category closes during which payments that were started
-     | before the close are still credited. After the window they are recorded
-     | as "paid_uncredited" for refund handling, and the category may be revealed.
+     | A payment started before a category closes is still credited if it is
+     | confirmed before the reveal AND within this many minutes of the close
+     | (D-85). Otherwise it is recorded as "paid_uncredited" for refund handling.
+     | RevealWinnerAction refuses while such payments are still pending, unless
+     | explicitly overridden.
      |
      */
 
-    'close_grace_minutes' => (int) env('VOTING_CLOSE_GRACE_MINUTES', 5),
+    'close_grace_minutes' => (int) env('VOTING_CLOSE_GRACE_MINUTES', 30),
 
     /*
      |--------------------------------------------------------------------------
@@ -127,6 +129,10 @@ return [
      */
 
     'fingerprint_key' => env('VOTING_FINGERPRINT_KEY'),
+
+    // Keys phone_hash on vote_transactions (exact search by phone without storing the number, D-86).
+    // Falls back to APP_KEY. Rotating it makes phone search miss every row hashed with the old key.
+    'phone_hash_key' => env('VOTING_PHONE_HASH_KEY'),
 
     'voter_cookie' => env('VOTING_VOTER_COOKIE', 'vl_voter'),
 

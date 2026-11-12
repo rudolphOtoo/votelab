@@ -101,6 +101,9 @@ final readonly class PaystackPaymentGateway implements PaymentGateway
             providerStatus: $result->status,
             channel: $result->channel,
             paidAt: $result->paidAt,
+            // payerPhone stays null for now: PayZephyr's verification DTO drops Paystack's authorization and
+            // customer phone fields, and which field carries a mobile-money number is not yet confirmed
+            // (open question, D-86). Phone search stays empty until it is wired here.
         );
     }
 
