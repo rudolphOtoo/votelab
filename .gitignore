@@ -47,3 +47,5 @@ Homestead.yaml
 Thumbs.db
 /database/*.sqlite
 # <<< Laravel <<<
+/tests/Browser/Screenshots
+/storage/perf

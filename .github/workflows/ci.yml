@@ -81,3 +81,72 @@ jobs:
 
       - name: Migrations and seeders run clean
         run: php artisan migrate:fresh --seed --force
+
+  # Real-browser tests (pestphp/pest-plugin-browser + Playwright Chromium) against the production build (D-113).
+  # Required: the small critical set (vote flow at 360 px, hidden-results checks, sign-in, axe on public pages).
+  browser-critical:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+      - run: npx playwright install --with-deps chromium
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Browser tests (critical, required)
+        run: ./vendor/bin/pest tests/Browser --group=critical
+
+  # Advisory: every other browser test, including the review screenshots and the component gallery's axe scan.
+  # Doesn't fail the build; promote tests to the critical group after two weeks without flakes (D-113).
+  browser-advisory:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+      - run: npx playwright install --with-deps chromium
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Browser tests (advisory)
+        run: ./vendor/bin/pest tests/Browser --exclude-group=critical
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: tests/Browser/Screenshots
+          if-no-files-found: ignore
