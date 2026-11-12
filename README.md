@@ -42,6 +42,8 @@ composer lint:check   # Mago: check only (CI)
 composer types:check  # Larastan level 8
 composer test         # Pest, in parallel
 composer check        # all of the above
+composer audit        # known advisories in PHP dependencies (CI fails on any)
+npm audit             # known advisories in JS dependencies (CI fails on any)
 ```
 
 ## Money and vote integrity
@@ -242,12 +244,15 @@ All voting settings live in [`config/voting.php`](config/voting.php) and are lis
 ### Monitoring and recovery
 
 - **`GET /health`** (JSON, for uptime monitors): `ok`, `degraded` (queue backing up, jobs failed in the last
-  24 h, scheduler stopped) or `down` with HTTP 503 (database or the shared lock store failing). `/up` only
-  says the process is alive.
+  24 h, scheduler stopped) or `down` with HTTP 503 (database or the shared lock store failing). The checks
+  themselves are shown only with a valid `X-Health-Token` header (`HEALTH_CHECK_TOKEN`). `/up` only says the
+  process is alive.
 - **Alerts** (`storage/logs/alerts-*.log`, and Sentry when `SENTRY_LARAVEL_DSN` is set): every failed job,
   `fulfilment.gave_up` (a paid vote may be uncredited: verify it by hand), and tally drift.
 - **Sentry** never receives phone numbers or email addresses: `send_default_pii` is off, SQL bindings are
-  never sent, and every event and breadcrumb is scrubbed (`App\Support\Observability\PiiScrubber`).
+  never sent, and every event and breadcrumb is scrubbed (`App\Support\Observability\PiiScrubber`). To
+  confirm it in your Sentry project, run `php artisan ops:sentry-check` from a non-production environment
+  with the same DSN: the event's fake numbers and email must show as `[phone]` / `[email]`.
 - **Tallies:** `php artisan votes:rebuild-tallies org-slug/program-slug --dry-run` compares every nominee's
   counter with the vote ledger; without `--dry-run` it fixes counters from the ledger (`--force` in
   production). The scheduler runs `--all --dry-run` at 03:00 and alerts on any drift.
@@ -287,7 +292,9 @@ Stage 3 (hardening) completes this list; the items below are already required.
   is a live key, and `VOTING_PHONE_HASH_KEY` is set. The error lists every problem.
 - [ ] **Sentry DSN set** (`SENTRY_LARAVEL_DSN`) and alert rules created for `queue.job_failed`,
   `fulfilment.gave_up`, `tally.drift` and `tally.drift_nightly`.
-- [ ] **An uptime monitor watches `/health`** (alert on 503 and on `"status":"degraded"`).
+- [ ] **An uptime monitor watches `/health`** (alert on 503 and on `"status":"degraded"`). Set
+  `HEALTH_CHECK_TOKEN` to a long random value and send it as the `X-Health-Token` header from the monitor to
+  see which check failed; without it the response is only the status word.
 - [ ] **Rate limits fit your venue** (`VOTING_RATE_*`, per minute): voter limits are per device with high
   per-network backstops for carrier-grade NAT and venue Wi-Fi; raise `*_PER_IP` for very large venues.
 - [ ] **Failed jobs are pruned:** the scheduler runs `queue:prune-failed --hours=168` daily. A failed
