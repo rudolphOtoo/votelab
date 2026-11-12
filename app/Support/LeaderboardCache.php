@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Enums\CategoryStatus;
 use App\Models\AwardCategory;
 use App\Models\Nominee;
 use Illuminate\Contracts\Cache\LockTimeoutException;
@@ -20,10 +21,11 @@ use Illuminate\Support\Facades\Cache;
  *  - no copy: requests wait briefly on the lock, then reuse the rebuilt copy. Only if no copy
  *    appears within REBUILD_WAIT_SECONDS is the counter read directly (and not cached).
  *
- * Fails closed: standings() returns null, without touching the cache, unless the category's results
- * are public (CategoryStatus::isLeaderboardPublic()). Callers may check visibility as well (CategoryShow
- * does, as a second layer) but never need to for safety. The gate trusts the status of the model it is
- * given, so pass one loaded in the current request, not one held across polls.
+ * Fails closed: standings() reads the category's current status from the database (one primary-key
+ * lookup of the status column) and returns null, without touching the cache, unless its results are
+ * public (CategoryStatus::isLeaderboardPublic()). It never trusts the status on the caller's model, so a
+ * model held across polls can't leak counts after the category goes blind. Callers may check visibility
+ * as well (CategoryShow does, as a second layer) but never need to for safety.
  */
 final class LeaderboardCache
 {
@@ -47,11 +49,12 @@ final class LeaderboardCache
      */
     public static function standings(AwardCategory $category): ?array
     {
-        if (!$category->status->isLeaderboardPublic()) {
+        $awardCategoryId = $category->id;
+
+        if (!self::resultsArePublic($awardCategoryId)) {
             return null;
         }
 
-        $awardCategoryId = $category->id;
         $copy = self::copy($awardCategoryId);
 
         if ($copy === null) {
@@ -128,6 +131,21 @@ final class LeaderboardCache
             // No copy to serve and the rebuild is stuck: read the counter directly so the page still works.
             return self::load($awardCategoryId);
         }
+    }
+
+    /**
+     * The gate: the category's status as stored now, not as the caller last loaded it. A missing
+     * category counts as hidden.
+     */
+    private static function resultsArePublic(int $awardCategoryId): bool
+    {
+        $status = AwardCategory::query()->whereKey($awardCategoryId)->value('status');
+
+        if (is_string($status)) {
+            $status = CategoryStatus::tryFrom($status);
+        }
+
+        return $status instanceof CategoryStatus && $status->isLeaderboardPublic();
     }
 
     private static function isFresh(int $awardCategoryId): bool

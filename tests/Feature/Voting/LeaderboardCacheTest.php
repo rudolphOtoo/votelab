@@ -31,17 +31,18 @@ it('registers the refresh listener for paid and free votes', function (): void {
     Event::assertListening(FreeVoteCast::class, [RefreshLeaderboardCache::class, 'handleFreeVoteCast']);
 });
 
-it('serves polls from the cache without querying again', function (): void {
+it('serves polls from the cache: only the status gate queries, never the standings', function (): void {
     $nominee = Nominee::factory()->create();
     LeaderboardCache::standings($nominee->awardCategory);
 
-    $queries = 0;
-    DB::listen(static function () use (&$queries): void {
-        $queries++;
+    $queries = [];
+    DB::listen(static function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
     });
     LeaderboardCache::standings($nominee->awardCategory);
 
-    expect($queries)->toBe(0);
+    // D-67 (amended): one primary-key read of the status column, and nothing else.
+    expect($queries)->toBe(['select "status" from "award_categories" where "award_categories"."id" = ? limit 1']);
 });
 
 it('refreshes cached standings as soon as paid votes are credited', function (): void {
@@ -195,9 +196,9 @@ it('fails closed: returns nothing and reads no cache key for a hidden-results ca
     Event::listen(RetrievingKey::class, static function (RetrievingKey $event) use (&$read): void {
         $read[] = $event->key;
     });
-    $queries = 0;
-    DB::listen(static function () use (&$queries): void {
-        $queries++;
+    $queries = [];
+    DB::listen(static function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
     });
 
     expect(LeaderboardCache::standings($category))
@@ -205,7 +206,7 @@ it('fails closed: returns nothing and reads no cache key for a hidden-results ca
         ->and($read)
         ->toBeEmpty()
         ->and($queries)
-        ->toBe(0)
+        ->toBe(['select "status" from "award_categories" where "award_categories"."id" = ? limit 1'])
         ->and(Cache::get(VoteKeys::leaderboard($category->id)))
         ->toBe([$nominee->id => 31]);
 })->with([
@@ -223,3 +224,22 @@ it('serves standings for categories whose results are public', function (Categor
     'open' => CategoryStatus::Open,
     'revealed' => CategoryStatus::Revealed,
 ]);
+
+it('reads the stored status rather than trusting a stale model the caller still holds', function (): void {
+    $category = AwardCategory::factory()->status(CategoryStatus::Open)->create();
+    Nominee::factory()->for($category)->create(['votes_count' => 77]);
+    expect(LeaderboardCache::standings($category))->not->toBeNull();
+
+    // Another request embargoes the category; this caller's copy still says "open".
+    AwardCategory::query()->whereKey($category->id)->update(['status' => CategoryStatus::Embargoed]);
+    expect($category->status)->toBe(CategoryStatus::Open);
+
+    expect(LeaderboardCache::standings($category))->toBeNull();
+});
+
+it('treats a category that no longer exists as hidden', function (): void {
+    $category = AwardCategory::factory()->create();
+    AwardCategory::query()->whereKey($category->id)->delete();
+
+    expect(LeaderboardCache::standings($category))->toBeNull();
+});
