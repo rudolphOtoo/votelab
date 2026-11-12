@@ -6,6 +6,7 @@ namespace App\Support;
 
 use App\Models\Nominee;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 /**
@@ -32,6 +33,34 @@ final class NomineeCode
     public static function isValid(string $code): bool
     {
         return preg_match(self::PATTERN, $code) === 1;
+    }
+
+    /**
+     * Normalize and validate a requested code, and make sure no other nominee in the program uses it.
+     *
+     * @throws ValidationException
+     */
+    public static function ensureAvailable(string $requested, int $awardProgramId, ?int $ignoreNomineeId = null): string
+    {
+        $code = self::normalize($requested);
+
+        if (!self::isValid($code)) {
+            throw ValidationException::withMessages([
+                'nominee_code' => 'Use 2–8 capital letters and digits, without 0, O, 1 or I.',
+            ]);
+        }
+
+        $taken = Nominee::query()
+            ->where('award_program_id', $awardProgramId)
+            ->where('nominee_code', $code)
+            ->when($ignoreNomineeId !== null, static fn($query) => $query->whereKeyNot($ignoreNomineeId))
+            ->exists();
+
+        if ($taken) {
+            throw ValidationException::withMessages(['nominee_code' => "{$code} is already used in this program."]);
+        }
+
+        return $code;
     }
 
     /**

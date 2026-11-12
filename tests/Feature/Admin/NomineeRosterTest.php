@@ -25,6 +25,7 @@ use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     Storage::fake('public');
+    Storage::fake('local');
 });
 
 function rosterCategory(CategoryStatus $status = CategoryStatus::Draft): AwardCategory

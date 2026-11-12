@@ -39,13 +39,16 @@ return [
      | Nominee photos
      |--------------------------------------------------------------------------
      |
-     | Uploads are checked by content (JPEG, PNG or WebP), centre-cropped to
-     | 4:5 and stored as WebP at this size on a public disk.
+     | Uploads are checked by content (JPEG, PNG or WebP). The original is kept
+     | on a private disk; the public portrait is the organizer's 4:5 crop of
+     | it, re-encoded as WebP at this size.
      |
      */
 
     'nominee_photos' => [
         'disk' => env('NOMINEE_PHOTO_DISK', 'public'),
+        // Uploaded originals, kept so a portrait can be re-cropped; never public.
+        'original_disk' => env('NOMINEE_PHOTO_ORIGINAL_DISK', 'local'),
         'max_kilobytes' => 5_120,
         'width' => 800,
         'height' => 1_000,

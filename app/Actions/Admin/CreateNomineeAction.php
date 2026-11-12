@@ -13,7 +13,6 @@ use App\Support\NomineeCode;
 use App\Support\NomineePhoto;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -26,7 +25,7 @@ use Illuminate\Validation\ValidationException;
 final readonly class CreateNomineeAction
 {
     /**
-     * @param  array{name?: mixed, stage_name?: mixed, bio?: mixed, nominee_code?: mixed, photo?: mixed}  $input
+     * @param  array{name?: mixed, stage_name?: mixed, bio?: mixed, nominee_code?: mixed, photo?: mixed, crop?: mixed}  $input
      *
      * @throws AuthorizationException
      * @throws ValidationException
@@ -42,30 +41,11 @@ final readonly class CreateNomineeAction
             'bio' => ['nullable', 'string', 'max:2000'],
             'nominee_code' => ['nullable', 'string', 'max:16'],
             'photo' => ['nullable', 'file'],
+            'crop' => ['nullable', 'array'],
         ])->validate();
 
-        $requestedCode = $data['nominee_code'] ?? null;
-        $code = self::code($category, $requestedCode === null ? null : (string) $requestedCode, (string) $data['name']);
-        $photo = ($data['photo'] ?? null) instanceof UploadedFile ? NomineePhoto::store($data['photo']) : null;
-
-        $nominee = DB::transaction(static function () use ($category, $data, $code, $photo): Nominee {
-            $nominee = new Nominee();
-            $nominee->forceFill([
-                'organization_id' => $category->organization_id,
-                'award_program_id' => $category->award_program_id,
-                'award_category_id' => $category->id,
-                'name' => trim((string) $data['name']),
-                'stage_name' => self::nullableText($data['stage_name'] ?? null),
-                'bio' => self::nullableText($data['bio'] ?? null),
-                'nominee_code' => $code,
-                'avatar_url' => $photo,
-                'votes_count' => 0,
-                'display_order' =>
-                    (int) Nominee::query()->where('award_category_id', $category->id)->max('display_order') + 1,
-            ])->save();
-
-            return $nominee;
-        });
+        $nominee = new Nominee();
+        $nominee->forceFill(self::attributes($category, $data))->save();
 
         if (CategoryPhase::of($category->status) === CategoryPhase::Live) {
             Audit::record('nominee.created_while_live', $actor, $nominee, [
@@ -82,30 +62,44 @@ final readonly class CreateNomineeAction
     }
 
     /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     *
+     * @throws ValidationException
+     */
+    private static function attributes(AwardCategory $category, array $data): array
+    {
+        $requestedCode = $data['nominee_code'] ?? null;
+        $crop = is_array($data['crop'] ?? null) ? $data['crop'] : null;
+        $photo = ($data['photo'] ?? null) instanceof UploadedFile ? NomineePhoto::store($data['photo'], $crop) : [];
+
+        return [
+            'organization_id' => $category->organization_id,
+            'award_program_id' => $category->award_program_id,
+            'award_category_id' => $category->id,
+            'name' => trim((string) $data['name']),
+            'stage_name' => self::nullableText($data['stage_name'] ?? null),
+            'bio' => self::nullableText($data['bio'] ?? null),
+            'nominee_code' => self::code(
+                $category,
+                $requestedCode === null ? null : (string) $requestedCode,
+                (string) $data['name'],
+            ),
+            'votes_count' => 0,
+            'display_order' =>
+                (int) Nominee::query()->where('award_category_id', $category->id)->max('display_order') + 1,
+            ...$photo,
+        ];
+    }
+
+    /**
      * @throws ValidationException
      */
     private static function code(AwardCategory $category, ?string $requested, string $name): string
     {
-        if ($requested === null || trim($requested) === '') {
-            return NomineeCode::generate($category->award_program_id, $name);
-        }
-
-        $code = NomineeCode::normalize($requested);
-
-        if (!NomineeCode::isValid($code)) {
-            throw ValidationException::withMessages([
-                'nominee_code' => 'Use 2–8 capital letters and digits, without 0, O, 1 or I.',
-            ]);
-        }
-
-        if (Nominee::query()->where('award_program_id', $category->award_program_id)->where(
-            'nominee_code',
-            $code,
-        )->exists()) {
-            throw ValidationException::withMessages(['nominee_code' => "{$code} is already used in this program."]);
-        }
-
-        return $code;
+        return $requested === null || trim($requested) === ''
+            ? NomineeCode::generate($category->award_program_id, $name)
+            : NomineeCode::ensureAvailable($requested, $category->award_program_id);
     }
 
     private static function nullableText(mixed $value): ?string
