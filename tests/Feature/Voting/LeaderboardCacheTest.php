@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\Voting\CastFreeVoteAction;
 use App\Actions\Voting\FulfillPaidVoteOrderAction;
+use App\Enums\CategoryStatus;
 use App\Enums\PaymentTrigger;
 use App\Enums\VotingMode;
 use App\Events\FreeVoteCast;
@@ -16,6 +17,7 @@ use App\Services\Security\VoterIdentity;
 use App\Support\LeaderboardCache;
 use App\Support\VoteKeys;
 use Illuminate\Cache\Events\CacheMissed;
+use Illuminate\Cache\Events\RetrievingKey;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -31,13 +33,13 @@ it('registers the refresh listener for paid and free votes', function (): void {
 
 it('serves polls from the cache without querying again', function (): void {
     $nominee = Nominee::factory()->create();
-    LeaderboardCache::standings($nominee->award_category_id);
+    LeaderboardCache::standings($nominee->awardCategory);
 
     $queries = 0;
     DB::listen(static function () use (&$queries): void {
         $queries++;
     });
-    LeaderboardCache::standings($nominee->award_category_id);
+    LeaderboardCache::standings($nominee->awardCategory);
 
     expect($queries)->toBe(0);
 });
@@ -47,25 +49,25 @@ it('refreshes cached standings as soon as paid votes are credited', function ():
     $transaction = VoteTransaction::factory()->create(['quantity' => 40]);
     $gateway->reports($transaction->payment_reference, amount: $transaction->gross_amount);
 
-    expect(LeaderboardCache::standings($transaction->award_category_id)[$transaction->nominee_id])->toBe(0);
+    expect(LeaderboardCache::standings($transaction->awardCategory)[$transaction->nominee_id])->toBe(0);
 
     app(FulfillPaidVoteOrderAction::class)->execute($transaction->payment_reference, PaymentTrigger::Webhook);
 
-    expect(LeaderboardCache::standings($transaction->award_category_id)[$transaction->nominee_id])->toBe(40);
+    expect(LeaderboardCache::standings($transaction->awardCategory)[$transaction->nominee_id])->toBe(40);
 });
 
 it('refreshes cached standings as soon as a free vote is cast', function (): void {
     $nominee = Nominee::factory()->for(AwardCategory::factory()->mode(VotingMode::Free))->create();
-    expect(LeaderboardCache::standings($nominee->award_category_id)[$nominee->id])->toBe(0);
+    expect(LeaderboardCache::standings($nominee->awardCategory)[$nominee->id])->toBe(0);
 
     app(CastFreeVoteAction::class)->execute($nominee, new VoterIdentity(str_repeat('a', 64), str_repeat('b', 64)));
 
-    expect(LeaderboardCache::standings($nominee->award_category_id)[$nominee->id])->toBe(1);
+    expect(LeaderboardCache::standings($nominee->awardCategory)[$nominee->id])->toBe(1);
 });
 
 it('marks standings stale when votes land but keeps the last good copy', function (): void {
     $nominee = Nominee::factory()->for(AwardCategory::factory()->mode(VotingMode::Free))->create();
-    LeaderboardCache::standings($nominee->award_category_id);
+    LeaderboardCache::standings($nominee->awardCategory);
 
     app(CastFreeVoteAction::class)->execute($nominee, new VoterIdentity(str_repeat('a', 64), str_repeat('b', 64)));
 
@@ -91,6 +93,7 @@ function countRebuilds(int &$rebuilds, ?Closure $during = null): void
 it('rebuilds once when concurrent polls find no copy at all', function (): void {
     $nominee = Nominee::factory()->create(['votes_count' => 12]);
     $categoryId = $nominee->award_category_id;
+    $category = $nominee->awardCategory;
     $rebuilds = 0;
     countRebuilds($rebuilds);
 
@@ -101,16 +104,17 @@ it('rebuilds once when concurrent polls find no copy at all', function (): void 
         &$interleaved,
         &$second,
         $categoryId,
+        $category,
     ): void {
         if ($interleaved || $event->key !== VoteKeys::leaderboard($categoryId)) {
             return;
         }
 
         $interleaved = true;
-        $second = LeaderboardCache::standings($categoryId);
+        $second = LeaderboardCache::standings($category);
     });
 
-    $first = LeaderboardCache::standings($categoryId);
+    $first = LeaderboardCache::standings($category);
 
     expect($interleaved)
         ->toBeTrue()
@@ -125,18 +129,19 @@ it('rebuilds once when concurrent polls find no copy at all', function (): void 
 it('serves the stale copy to concurrent polls while one of them rebuilds', function (): void {
     $nominee = Nominee::factory()->create(['votes_count' => 5]);
     $categoryId = $nominee->award_category_id;
-    LeaderboardCache::standings($categoryId);
+    $category = $nominee->awardCategory;
+    LeaderboardCache::standings($category);
     Nominee::query()->whereKey($nominee->id)->update(['votes_count' => 9]);
     LeaderboardCache::forget($categoryId);
 
     // While the first poll holds the lock and runs its rebuild query, a second poll arrives.
     $rebuilds = 0;
     $second = null;
-    countRebuilds($rebuilds, static function () use (&$second, $categoryId): void {
-        $second ??= LeaderboardCache::standings($categoryId);
+    countRebuilds($rebuilds, static function () use (&$second, $category): void {
+        $second ??= LeaderboardCache::standings($category);
     });
 
-    $first = LeaderboardCache::standings($categoryId);
+    $first = LeaderboardCache::standings($category);
 
     expect($rebuilds)
         ->toBe(1)
@@ -144,14 +149,15 @@ it('serves the stale copy to concurrent polls while one of them rebuilds', funct
         ->toBe([$nominee->id => 9])
         ->and($second)
         ->toBe([$nominee->id => 5])
-        ->and(LeaderboardCache::standings($categoryId))
+        ->and(LeaderboardCache::standings($category))
         ->toBe([$nominee->id => 9]);
 });
 
 it('serves the stale copy without waiting or querying when the rebuild lock is stuck', function (): void {
     $nominee = Nominee::factory()->create(['votes_count' => 4]);
     $categoryId = $nominee->award_category_id;
-    LeaderboardCache::standings($categoryId);
+    $category = $nominee->awardCategory;
+    LeaderboardCache::standings($category);
     Nominee::query()->whereKey($nominee->id)->update(['votes_count' => 6]);
     LeaderboardCache::forget($categoryId);
     Cache::lock(VoteKeys::leaderboardRebuildLock($categoryId), 30)->get();
@@ -160,7 +166,7 @@ it('serves the stale copy without waiting or querying when the rebuild lock is s
     countRebuilds($rebuilds);
     $started = microtime(true);
 
-    expect(LeaderboardCache::standings($categoryId))
+    expect(LeaderboardCache::standings($category))
         ->toBe([$nominee->id => 4])
         ->and($rebuilds)
         ->toBe(0)
@@ -172,8 +178,48 @@ it('reads the counter directly only when no copy exists and the rebuild lock is 
     $nominee = Nominee::factory()->create(['votes_count' => 4]);
     Cache::lock(VoteKeys::leaderboardRebuildLock($nominee->award_category_id), 30)->get();
 
-    expect(LeaderboardCache::standings($nominee->award_category_id))
+    expect(LeaderboardCache::standings($nominee->awardCategory))
         ->toBe([$nominee->id => 4])
         ->and(Cache::has(VoteKeys::leaderboard($nominee->award_category_id)))
         ->toBeFalse();
 });
+
+it('fails closed: returns nothing and reads no cache key for a hidden-results category', function (CategoryStatus $status): void {
+    $category = AwardCategory::factory()->status($status)->create();
+    $nominee = Nominee::factory()->for($category)->create(['votes_count' => 31]);
+
+    // A copy holding counts already sits in the cache, e.g. from before the category went blind.
+    LeaderboardCache::refresh($category->id);
+
+    $read = [];
+    Event::listen(RetrievingKey::class, static function (RetrievingKey $event) use (&$read): void {
+        $read[] = $event->key;
+    });
+    $queries = 0;
+    DB::listen(static function () use (&$queries): void {
+        $queries++;
+    });
+
+    expect(LeaderboardCache::standings($category))
+        ->toBeNull()
+        ->and($read)
+        ->toBeEmpty()
+        ->and($queries)
+        ->toBe(0)
+        ->and(Cache::get(VoteKeys::leaderboard($category->id)))
+        ->toBe([$nominee->id => 31]);
+})->with([
+    'draft' => CategoryStatus::Draft,
+    'embargoed' => CategoryStatus::Embargoed,
+    'closed' => CategoryStatus::Closed,
+]);
+
+it('serves standings for categories whose results are public', function (CategoryStatus $status): void {
+    $category = AwardCategory::factory()->status($status)->create();
+    $nominee = Nominee::factory()->for($category)->create(['votes_count' => 8]);
+
+    expect(LeaderboardCache::standings($category))->toBe([$nominee->id => 8]);
+})->with([
+    'open' => CategoryStatus::Open,
+    'revealed' => CategoryStatus::Revealed,
+]);

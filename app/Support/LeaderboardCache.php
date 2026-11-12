@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\AwardCategory;
 use App\Models\Nominee;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -19,8 +20,10 @@ use Illuminate\Support\Facades\Cache;
  *  - no copy: requests wait briefly on the lock, then reuse the rebuilt copy. Only if no copy
  *    appears within REBUILD_WAIT_SECONDS is the counter read directly (and not cached).
  *
- * Callers must decide visibility first: this class knows nothing about embargoes, so hidden-results
- * screens must not call it at all (CategoryShow checks isLeaderboardPublic() before every read).
+ * Fails closed: standings() returns null, without touching the cache, unless the category's results
+ * are public (CategoryStatus::isLeaderboardPublic()). Callers may check visibility as well (CategoryShow
+ * does, as a second layer) but never need to for safety. The gate trusts the status of the model it is
+ * given, so pass one loaded in the current request, not one held across polls.
  */
 final class LeaderboardCache
 {
@@ -40,10 +43,15 @@ final class LeaderboardCache
     private const int REBUILD_WAIT_SECONDS = 2;
 
     /**
-     * @return array<int, int> nominee_id => votes
+     * @return array<int, int>|null nominee_id => votes, or null while the category's results are hidden
      */
-    public static function standings(int $awardCategoryId): array
+    public static function standings(AwardCategory $category): ?array
     {
+        if (!$category->status->isLeaderboardPublic()) {
+            return null;
+        }
+
+        $awardCategoryId = $category->id;
         $copy = self::copy($awardCategoryId);
 
         if ($copy === null) {

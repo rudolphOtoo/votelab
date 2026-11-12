@@ -89,7 +89,8 @@ final class CategoryShow extends Component
             ])
             ->get();
 
-        $standings = $leaderboardPublic ? LeaderboardCache::standings($category->id) : null;
+        // Second layer: LeaderboardCache::standings() already returns null for hidden results.
+        $standings = $leaderboardPublic ? LeaderboardCache::standings($category) : null;
 
         return view('livewire.public.category-show', [
             'category' => $category,
