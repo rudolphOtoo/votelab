@@ -64,7 +64,8 @@ final readonly class DecidePaymentSettlement
 
     /**
      * Open and embargoed categories always accept. A closed one accepts a payment only if its checkout
-     * started before the close and it is verified within voting.close_grace_minutes of the close (30) and
+     * started before the close and it is verified within the category's grace window (frozen from its program at
+     * close, 10–30 minutes, D-94) and
      * before the reveal: a revealed category accepts nothing (D-85, superseding D-10/D-32's 5 minutes).
      */
     private static function acceptsPayment(AwardCategory $category, VoteTransaction $transaction): bool

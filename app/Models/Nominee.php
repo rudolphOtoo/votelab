@@ -105,6 +105,7 @@ final class Nominee extends Model
         return [
             'votes_count' => 'integer',
             'archived_at' => 'datetime',
+            'photo_crop' => 'array',
         ];
     }
 }

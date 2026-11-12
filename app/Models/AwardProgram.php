@@ -76,6 +76,7 @@ final class AwardProgram extends Model
             'starts_at' => 'immutable_datetime',
             'ends_at' => 'immutable_datetime',
             'settings' => 'array',
+            'close_grace_minutes' => 'integer',
         ];
     }
 }

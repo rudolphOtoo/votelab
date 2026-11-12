@@ -122,3 +122,17 @@ it('tracks the close grace window of a closed category', function (): void {
     $open = AwardCategory::factory()->status(CategoryStatus::Open)->create();
     expect($open->graceEndsAt())->toBeNull()->and($open->isWithinCloseGrace())->toBeFalse();
 });
+
+it('parses cedi amounts into integer pesewas without floats', function (string $input, ?int $pesewas): void {
+    expect(App\Support\Money::parsePesewas($input))->toBe($pesewas);
+})->with([
+    ['1', 100],
+    ['1.5', 150],
+    ['1.50', 150],
+    ['0.05', 5],
+    [' 12.34 ', 1234],
+    ['1.234', null],
+    ['-1', null],
+    ['abc', null],
+    ['', null],
+]);

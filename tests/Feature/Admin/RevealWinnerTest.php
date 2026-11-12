@@ -44,9 +44,13 @@ function closedCategory(array $ledgerVotes = [10, 25, 5]): array
     return [$category, $nominees, organizer(OrganizationRole::Admin, $category->organization)];
 }
 
-function reveal(AwardCategory $category, User $actor, bool $override = false): App\Actions\Admin\RevealResult
-{
-    return app(RevealWinnerAction::class)->execute($category, $actor, $override);
+function reveal(
+    AwardCategory $category,
+    User $actor,
+    bool $override = false,
+    bool $passwordConfirmed = true,
+): App\Actions\Admin\RevealResult {
+    return app(RevealWinnerAction::class)->execute($category, $actor, $override, $passwordConfirmed);
 }
 
 it('reveals a closed category with its podium and winner', function (): void {
@@ -265,4 +269,26 @@ it('reports drift without fixing it on a dry run (for votes:rebuild-tallies)', f
         ->toBe(30)
         ->and(App\Models\AuditEvent::query()->where('action', 'tally.drift_found')->count())
         ->toBe(1);
+});
+
+it('requires a recently confirmed password to reveal anyway', function (): void {
+    config(['voting.close_grace_minutes' => 30]);
+    [$category, $nominees, $admin] = closedCategory();
+    VoteTransaction::factory()->for($nominees[0])->create(['created_at' => now()->subMinute()]);
+
+    expect(fn() => reveal($category, $admin, override: true, passwordConfirmed: false))
+        ->toThrow(Illuminate\Validation\ValidationException::class);
+    expect($category->fresh()?->status)->toBe(CategoryStatus::Closed);
+});
+
+it('uses the grace window the category closed with, not a later program setting', function (): void {
+    [$category, $nominees] = closedCategory(); // closed at 20:00
+    $category->forceFill(['close_grace_minutes' => 10])->save();
+    VoteTransaction::factory()->for($nominees[0])->create(['created_at' => now()->subSeconds(30)]);
+
+    Carbon::setTestNow('2026-11-20 20:09:00');
+    expect(RevealWinnerAction::pendingPaymentsCount($category->fresh() ?? $category))->toBe(1);
+
+    Carbon::setTestNow('2026-11-20 20:10:00');
+    expect(RevealWinnerAction::pendingPaymentsCount($category->fresh() ?? $category))->toBe(0);
 });

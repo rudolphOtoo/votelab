@@ -19,6 +19,7 @@ use App\Support\LeaderboardCache;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Closed → Revealed, once, with the official count.
@@ -34,12 +35,26 @@ use Illuminate\Support\Facades\Gate;
 final readonly class RevealWinnerAction
 {
     /**
+     * @param  bool  $passwordConfirmed  Required with the override ("reveal anyway"): the caller confirms the
+     *                                   organizer re-entered their password recently.
+     *
      * @throws AuthorizationException
      * @throws PendingPaymentsException
      * @throws StatusChangeRefusedException
+     * @throws ValidationException
      */
-    public function execute(AwardCategory $category, User $actor, bool $overridePendingPayments = false): RevealResult
-    {
+    public function execute(
+        AwardCategory $category,
+        User $actor,
+        bool $overridePendingPayments = false,
+        bool $passwordConfirmed = false,
+    ): RevealResult {
+        if ($overridePendingPayments && !$passwordConfirmed) {
+            throw ValidationException::withMessages([
+                'confirmation' => 'Confirm your password to reveal with payments still pending.',
+            ]);
+        }
+
         $current = AwardCategory::query()->findOrFail($category->id);
 
         if ($current->status === CategoryStatus::Revealed) {
@@ -114,7 +129,7 @@ final readonly class RevealWinnerAction
     /**
      * Payments that could still be credited if the reveal waited, and so block it (the 2d screen shows the
      * count): still `pending` (an `expired` checkout was swept as unpaid), started at or before the close, and
-     * started within the last close_grace_minutes (an older unfinished checkout counts as abandoned) — and
+     * started within the last grace window (an older unfinished checkout counts as abandoned) — and
      * only while the grace window since the close is still running. Past the cap nothing blocks.
      */
     public static function pendingPaymentsCount(AwardCategory $category): int
@@ -123,7 +138,7 @@ final readonly class RevealWinnerAction
             return 0;
         }
 
-        $grace = (int) config('voting.close_grace_minutes');
+        $grace = $category->graceMinutes();
         $now = now();
 
         if ($now->greaterThanOrEqualTo($category->closed_at->addMinutes($grace))) {

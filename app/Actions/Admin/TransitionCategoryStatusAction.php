@@ -8,6 +8,7 @@ use App\Enums\CategoryStatus;
 use App\Events\CategoryStatusChanged;
 use App\Exceptions\Admin\StatusChangeRefusedException;
 use App\Models\AwardCategory;
+use App\Models\AwardProgram;
 use App\Models\CategoryStatusTransition;
 use App\Models\User;
 use App\Support\Audit;
@@ -53,9 +54,14 @@ final readonly class TransitionCategoryStatusAction
                 throw StatusChangeRefusedException::notAllowed($from, $to);
             }
 
+            $closing = $to === CategoryStatus::Closed;
             $locked->forceFill([
                 'status' => $to,
-                'closed_at' => $to === CategoryStatus::Closed ? now() : $locked->closed_at,
+                'closed_at' => $closing ? now() : $locked->closed_at,
+                // Freeze the program's grace window for this close (D-94).
+                'close_grace_minutes' => $closing
+                    ? (int) AwardProgram::query()->whereKey($locked->award_program_id)->value('close_grace_minutes')
+                    : $locked->close_grace_minutes,
             ])->save();
 
             CategoryStatusTransition::query()->create([

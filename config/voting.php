@@ -32,14 +32,18 @@ return [
      |--------------------------------------------------------------------------
      |
      | A payment started before a category closes is still credited if it is
-     | confirmed before the reveal AND within this many minutes of the close
-     | (D-85). Otherwise it is recorded as "paid_uncredited" for refund handling.
+     | confirmed before the reveal AND within the program's grace window of the
+     | close (D-85, D-94). This is the platform maximum for that window. Otherwise it is recorded as "paid_uncredited" for refund handling.
      | RevealWinnerAction refuses while such payments are still pending, unless
      | explicitly overridden.
      |
      */
 
     'close_grace_minutes' => (int) env('VOTING_CLOSE_GRACE_MINUTES', 30),
+
+    // Each program sets its own window (D-94) between this minimum and close_grace_minutes, the platform
+    // maximum. New programs start at the maximum.
+    'close_grace_minimum_minutes' => 10,
 
     /*
      |--------------------------------------------------------------------------

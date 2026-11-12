@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'free_vote_limit',
     'status',
     'closed_at',
+    'close_grace_minutes',
     'display_order',
 ])]
 final class AwardCategory extends Model
@@ -87,7 +88,18 @@ final class AwardCategory extends Model
             return null;
         }
 
-        return $this->closed_at->addMinutes((int) config('voting.close_grace_minutes'));
+        return $this->closed_at->addMinutes($this->graceMinutes());
+    }
+
+    /**
+     * The grace window this category closed with (copied from its program at close, D-94), never more than
+     * the platform maximum. Categories closed before D-94 have no copy and use the maximum.
+     */
+    public function graceMinutes(): int
+    {
+        $max = (int) config('voting.close_grace_minutes');
+
+        return min($max, $this->close_grace_minutes ?? $max);
     }
 
     public function isWithinCloseGrace(?CarbonImmutable $at = null): bool
@@ -104,6 +116,7 @@ final class AwardCategory extends Model
     {
         return [
             'status' => CategoryStatus::class,
+            'close_grace_minutes' => 'integer',
             'voting_mode' => VotingMode::class,
             'price_per_vote' => 'integer',
             'free_vote_limit' => 'integer',
