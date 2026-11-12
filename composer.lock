@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7d06159a3f67a23186203eb873a2bad7",
+    "content-hash": "cc5b8b59fe73d30472789882cf484504",
     "packages": [
         {
             "name": "bacon/bacon-qr-code",
@@ -13459,66 +13459,6 @@
                 }
             ],
             "time": "2026-10-04T05:51:14+00:00"
-        },
-        {
-            "name": "sheaf/cli",
-            "version": "v1.3.5",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/sheafui/cli.git",
-                "reference": "caea3ec4ee064c1ced5e7ee77cd0a28a8cfe5a86"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/sheafui/cli/zipball/caea3ec4ee064c1ced5e7ee77cd0a28a8cfe5a86",
-                "reference": "caea3ec4ee064c1ced5e7ee77cd0a28a8cfe5a86",
-                "shasum": ""
-            },
-            "require-dev": {
-                "orchestra/testbench": "^10.4",
-                "pestphp/pest": "^3.8",
-                "pestphp/pest-plugin-laravel": "^3.2"
-            },
-            "type": "library",
-            "extra": {
-                "laravel": {
-                    "providers": [
-                        "Sheaf\\Cli\\ServiceProvider"
-                    ]
-                }
-            },
-            "autoload": {
-                "psr-4": {
-                    "Sheaf\\Cli\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Youssef ACHCHIRAJ",
-                    "email": "achchiraj.youssef@gmail.com",
-                    "homepage": "https://youssef-achchiraj.com",
-                    "role": "Full Stack Developer"
-                }
-            ],
-            "description": "A CLI tool for Sheaf UI",
-            "homepage": "https://github.com/sheaf/cli",
-            "keywords": [
-                "artisan-command",
-                "cli",
-                "laravel",
-                "laravel-package",
-                "package",
-                "sheaf"
-            ],
-            "support": {
-                "issues": "https://github.com/sheafui/cli/issues",
-                "source": "https://github.com/sheafui/cli/tree/v1.3.5"
-            },
-            "time": "2026-04-29T15:45:42+00:00"
         },
         {
             "name": "staabm/side-effects-detector",
