@@ -10,6 +10,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Fails the build on any known advisory in PHP or JS dependencies (D-110). Fix by updating the package,
+  # or record an accepted risk in plan/EXECUTION_LOG.md before ignoring an advisory.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Composer audit (composer.lock)
+        run: composer audit --locked --no-interaction
+
+      - name: npm audit (package-lock.json)
+        run: npm audit --audit-level=low
+
   quality:
     runs-on: ubuntu-latest
     strategy:
@@ -23,7 +46,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: mbstring, pdo_sqlite, intl, bcmath
+          # gd (with WebP and FreeType) renders nominee photos and share images in tests.
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
           coverage: none
 
       - uses: actions/setup-node@v4
