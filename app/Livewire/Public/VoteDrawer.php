@@ -9,6 +9,7 @@ use App\Actions\Voting\QuotePaidVotesAction;
 use App\Actions\Voting\StartVoteCheckoutAction;
 use App\Exceptions\Voting\CheckoutUnavailableException;
 use App\Exceptions\Voting\FreeVoteUnavailableException;
+use App\Livewire\Concerns\AllowsBackForwardCache;
 use App\Models\Nominee;
 use App\Services\Security\VoteFingerprintService;
 use App\Support\Throttle;
@@ -24,7 +25,14 @@ use Livewire\Component;
  */
 final class VoteDrawer extends Component
 {
+    use AllowsBackForwardCache;
+
     public const array QUICK_ADD = [10, 25, 50, 100];
+
+    /**
+     * Quick picks shown in the drawer: each sets the quantity (through the clamped `quantity` property).
+     */
+    public const array BUNDLES = [1, 5, 10, 20, 50];
 
     #[Locked]
     public int $nomineeId;
@@ -133,13 +141,19 @@ final class VoteDrawer extends Component
         return view('livewire.public.vote-drawer', [
             'nominee' => $nominee,
             'category' => $nominee->awardCategory,
+            'freeVotesLeft' => $mode->allowsFreeVotes()
+                ? CastFreeVoteAction::remainingToday(
+                    $nominee->awardCategory,
+                    app(VoteFingerprintService::class)->identify(request()),
+                )
+                : 0,
+            'bundles' => self::BUNDLES,
             'allowsFree' => $mode->allowsFreeVotes(),
             'allowsPaid' => $mode->allowsPaidVotes(),
             'freeVoteLimit' => $nominee->awardCategory->free_vote_limit,
             'quote' => $quote,
             'quoteError' => $quoteError,
             'maxQuantity' => (int) config('voting.max_votes_per_order'),
-            'quickAdd' => self::QUICK_ADD,
         ]);
     }
 

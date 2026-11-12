@@ -1,0 +1,166 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Enums\CategoryStatus;
+use App\Enums\TransactionStatus;
+use App\Enums\VotingMode;
+use App\Models\AwardCategory;
+use App\Models\AwardProgram;
+use App\Models\Nominee;
+use App\Models\Organization;
+use App\Models\VoteTransaction;
+use App\Support\LeaderboardCache;
+
+// Advisory group (D-113): every public screen and state at 360, 768 and 1440 px for review, each with axe at
+// every impact level. Photos are inline SVG portraits so nothing leaves the test server.
+
+function portrait(string $hue): string
+{
+    $svg =
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 500'><rect width='400' height='500' fill='hsl({$hue},45%,82%)'/>"
+        . "<circle cx='200' cy='190' r='86' fill='hsl({$hue},30%,42%)'/><rect x='70' y='300' width='260' height='260' rx='130' fill='hsl({$hue},30%,42%)'/></svg>";
+
+    return 'data:image/svg+xml,' . rawurlencode($svg);
+}
+
+function showcaseProgram(): AwardProgram
+{
+    $organization = Organization::factory()->create(['slug' => 'campus', 'name' => 'Accra Campus Creatives']);
+    $program = AwardProgram::factory()->for($organization)->create([
+        'slug' => 'awards',
+        'title' => 'Campus Excellence Awards 2026',
+        'tagline' => 'Celebrating the students who made this year unforgettable.',
+        'banner_url' => null,
+        'starts_at' => now()->subDays(3),
+        'ends_at' => now()->addDays(4)->setTime(20, 0),
+    ]);
+
+    $categories = [
+        ['artiste', 'Artiste of the Year', CategoryStatus::Open, VotingMode::Paid],
+        ['popular', 'Most Popular Student', CategoryStatus::Open, VotingMode::Hybrid],
+        ['dancer', 'Best Dancer', CategoryStatus::Embargoed, VotingMode::Paid],
+        ['song', 'Song of the Year', CategoryStatus::Revealed, VotingMode::Paid],
+        ['newcomer', 'Best Newcomer of the Academic Year in Creative Arts', CategoryStatus::Closed, VotingMode::Paid],
+    ];
+    $names = [
+        'Akosua Mensah-Boateng',
+        'Kwabena Owusu-Ansah',
+        'Efua Asantewaa',
+        'Yaw Darko',
+        'Nana Ama Serwaa Agyemang',
+    ];
+    $code = 10;
+
+    foreach ($categories as $c => [$slug, $name, $status, $mode]) {
+        $category = AwardCategory::factory()
+            ->for($program)
+            ->status($status)
+            ->mode($mode)
+            ->create([
+                'slug' => $slug,
+                'name' => $name,
+                'price_per_vote' => 100,
+                'free_vote_limit' => 1,
+                'display_order' => $c,
+            ]);
+
+        foreach ($names as $i => $nominee) {
+            Nominee::factory()
+                ->for($category)
+                ->create([
+                    'name' => $nominee,
+                    'stage_name' => null,
+                    'nominee_code' => strtoupper(substr($slug, 0, 2)) . $code++,
+                    'avatar_url' => $i === 4 ? null : portrait((string) ((($c * 70) + ($i * 45)) % 360)),
+                    'display_order' => $i,
+                ])
+                ->forceFill(['votes_count' => [1_240, 3_912, 860, 2_105, 415][$i]])
+                ->save();
+        }
+
+        LeaderboardCache::refresh($category->id);
+    }
+
+    return $program;
+}
+
+function paymentResult(TransactionStatus $status): string
+{
+    $nominee = Nominee::query()->where('nominee_code', 'AR10')->sole();
+    VoteTransaction::factory()->for($nominee)->create([
+        'payment_reference' => 'VL_7K2M9Q4XZP',
+        'status' => $status,
+        'quantity' => 20,
+        'credited_at' => $status === TransactionStatus::Successful ? now() : null,
+        'verified_at' => $status === TransactionStatus::Pending ? null : now(),
+    ]);
+
+    return '/payments/callback?reference=VL_7K2M9Q4XZP';
+}
+
+it('renders every public screen accessibly at each width', function (string $screen, int $width, int $height): void {
+    fakeGateway(); // unknown references can't be verified, so a pending payment stays pending
+    showcaseProgram();
+
+    $path = match ($screen) {
+        'landing' => '/campus/awards',
+        'landing-search' => '/campus/awards?q=Ansah',
+        'category-live' => '/campus/awards/categories/artiste',
+        'category-hidden' => '/campus/awards/categories/dancer',
+        'category-closed' => '/campus/awards/categories/newcomer',
+        'category-winner' => '/campus/awards/categories/song',
+        'drawer-paid' => '/campus/awards/AR10',
+        'drawer-free' => '/campus/awards/PO16',
+        'payment-success' => paymentResult(TransactionStatus::Successful),
+        'payment-pending' => paymentResult(TransactionStatus::Pending),
+        'payment-failed' => paymentResult(TransactionStatus::Failed),
+    };
+
+    $page = visit($path)->resize($width, $height);
+
+    if ($screen === 'drawer-free') {
+        $page->click('Free vote');
+    }
+
+    $page
+        ->wait(0.6)
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues(3)
+        ->screenshot(fullPage: !str_starts_with($screen, 'drawer'), filename: "public-{$screen}-{$width}");
+})
+    ->with([
+        'landing',
+        'landing-search',
+        'category-live',
+        'category-hidden',
+        'category-closed',
+        'category-winner',
+        'drawer-paid',
+        'drawer-free',
+        'payment-success',
+        'payment-pending',
+        'payment-failed',
+    ])
+    ->with([
+        'phone' => [360, 800],
+        'tablet' => [768, 1024],
+        'desktop' => [1440, 900],
+    ])
+    ->group('advisory', 'screenshots');
+
+it('returns focus to the Vote button when the drawer closes', function (): void {
+    fakeGateway();
+    showcaseProgram();
+
+    visit('/campus/awards/categories/artiste')
+        ->resize(360, 800)
+        ->click('#vote-' . Nominee::query()->where('nominee_code', 'AR11')->value('id'))
+        ->assertSee('Vote for Kwabena Owusu-Ansah')
+        ->keys('#vote-quantity', 'Escape')
+        ->wait(0.5)
+        ->assertScript(
+            'document.activeElement?.id',
+            'vote-' . Nominee::query()->where('nominee_code', 'AR11')->value('id'),
+        );
+})->group('advisory');

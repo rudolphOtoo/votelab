@@ -33,7 +33,7 @@ final class PaymentCallbackController
 
         abort_if($transaction === null, 404);
 
-        $transaction->loadMissing(['nominee', 'awardCategory', 'awardProgram']);
+        $transaction->loadMissing(['nominee', 'awardCategory', 'awardProgram.organization']);
 
         return view('payments.result', ['transaction' => $transaction]);
     }

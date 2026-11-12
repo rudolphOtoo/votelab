@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Livewire\Public;
 
 use App\Enums\CategoryStatus;
+use App\Livewire\Concerns\AllowsBackForwardCache;
 use App\Models\AwardCategory;
 use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
+use App\Support\CategoryPage;
 use App\Support\LeaderboardCache;
 use App\Support\ShareLinks;
 use Illuminate\Contracts\View\View;
@@ -26,6 +28,8 @@ use Livewire\Component;
 #[Layout('layouts::app')]
 final class CategoryShow extends Component
 {
+    use AllowsBackForwardCache;
+
     #[Locked]
     public int $categoryId;
 
@@ -98,18 +102,29 @@ final class CategoryShow extends Component
 
         // Second layer: LeaderboardCache::standings() already returns null for hidden results.
         $standings = $leaderboardPublic ? LeaderboardCache::standings($category) : null;
+        $revealed = $standings !== null && $category->status === CategoryStatus::Revealed;
+        $nominees = $revealed ? CategoryPage::byVotes($nominees, $standings) : $nominees;
+        $top = $revealed ? max([0, ...$standings]) : 0;
+        $program = $category->awardProgram;
+        $head = CategoryPage::head($program, $category, $nominees->firstWhere('id', $this->selectedNomineeId));
 
         return view('livewire.public.category-show', [
             'category' => $category,
-            'program' => $category->awardProgram,
-            'organization' => $category->awardProgram->organization,
+            'program' => $program,
+            'organization' => $program->organization,
             'nominees' => $nominees,
             'standings' => $standings,
             'totalVotes' => $standings === null ? 0 : array_sum($standings),
+            'winnerVotes' => $top > 0 ? $top : null,
             'acceptsVotes' => $category->status->isVotingAllowed(),
         ])
-            ->title("{$category->name} · {$category->awardProgram->title}")
-            ->layoutData(['meta' => $this->shareMeta($nominees)]);
+            ->title($head['title'])
+            ->layoutData([
+                'meta' => $this->shareMeta($nominees),
+                'description' => $head['description'],
+                'canonical' => $head['canonical'],
+                'brandOrganization' => $program->organization,
+            ]);
     }
 
     /**

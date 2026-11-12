@@ -90,7 +90,14 @@ it('never shows vote counts while results are hidden, including after a live ref
 it('has no accessibility issues on the main public pages', function (string $path): void {
     browserCategory(CategoryStatus::Open);
 
-    visit($path)->resize(360, 800)->assertNoJavaScriptErrors()->assertNoAccessibilityIssues(3);
+    visit($path)
+        ->resize(360, 800)
+        ->assertNoJavaScriptErrors()
+        ->assertNoAccessibilityIssues(3)
+        // D-124: voters get the public bundle only (no passkeys, crop editor or stage code).
+        ->assertSourceHas('/build/assets/public-')
+        ->assertSourceMissing('/build/assets/passkeys-')
+        ->assertSourceMissing('/build/assets/stage-');
 })->with([
     'program landing' => '/campus/awards',
     'category' => '/campus/awards/categories/artiste',
