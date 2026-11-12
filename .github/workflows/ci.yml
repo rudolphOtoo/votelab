@@ -64,6 +64,10 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci && npm run build
 
+      # Public JS ≤ 100 KB and CSS ≤ 30 KB gzipped, per-entry ceilings for the rest (D-124).
+      - name: Bundle budgets
+        run: node scripts/perf/bundle-budget.mjs
+
       - name: Prepare environment
         run: |
           cp .env.example .env

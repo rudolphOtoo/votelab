@@ -21,7 +21,7 @@ use Livewire\Component;
  * link can't be used, asks a new person for a name and password, asks an existing account to sign in, and
  * tells a signed-in user with a different email what to do.
  */
-#[Layout('layouts::app')]
+#[Layout('layouts::app', ['bundle' => 'auth'])]
 final class AcceptInvitation extends Component
 {
     #[Locked]

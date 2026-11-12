@@ -1,5 +1,5 @@
 {{-- Organizer pages: top bar, two-factor deadline banner (set by RequireTwoFactorForManagers), content. --}}
-<x-layouts::app :title="$title ?? null">
+<x-layouts::app :title="$title ?? null" bundle="admin">
     <header class="border-b border-hairline bg-surface">
         <nav aria-label="Organizer" class="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
             <a href="{{ route('dashboard') }}" class="mr-auto text-sm font-semibold tracking-tight text-ink">{{ config('app.name') }}</a>

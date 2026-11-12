@@ -3,7 +3,7 @@
 
 @php $bag = $errors->getBag($errorBag); @endphp
 
-<x-layouts::app :title="$title">
+<x-layouts::app :title="$title" bundle="auth">
     <main class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10">
         <a href="{{ url('/') }}" class="mb-8 text-sm font-semibold tracking-tight text-ink">{{ config('app.name') }}</a>
 

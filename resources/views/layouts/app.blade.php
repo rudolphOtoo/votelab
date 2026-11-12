@@ -6,13 +6,19 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>{{ isset($title) ? $title.' · ' : '' }}{{ config('app.name') }}</title>
+    <meta name="description" content="{{ $description ?? 'Vote for your favourite nominees in Ghana\'s awards, with mobile money or card. Fast, secure and counted once.' }}">
+    @isset($canonical)<link rel="canonical" href="{{ $canonical }}">@endisset
+    @isset($robots)<meta name="robots" content="{{ $robots }}">@endisset
+    <meta name="theme-color" content="{{ ($theme ?? null) === 'stage' ? '#121316' : '#faf9f6' }}">
     @foreach ($meta ?? [] as $property => $content)
         <meta property="{{ $property }}" content="{{ $content }}">
     @endforeach
 
     @fonts
+    <x-ui.brand-style :organization="$brandOrganization ?? null" />
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- JS bundle per audience (D-124): public (default), auth, admin or stage. --}}
+    @vite(['resources/css/app.css', 'resources/js/entries/'.(in_array($bundle ?? 'public', ['public', 'auth', 'admin', 'stage'], true) ? ($bundle ?? 'public') : 'public').'.js'])
     @livewireStyles
 </head>
 <body class="min-h-screen bg-canvas text-ink font-sans antialiased">

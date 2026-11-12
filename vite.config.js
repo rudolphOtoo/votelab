@@ -6,7 +6,15 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/app.js'],
+            // One JS entry per audience (D-124); every page also loads app.css. Livewire + Alpine land in a shared
+            // chunk, cached once across entries.
+            input: [
+                'resources/css/app.css',
+                'resources/js/entries/public.js',
+                'resources/js/entries/auth.js',
+                'resources/js/entries/admin.js',
+                'resources/js/entries/stage.js',
+            ],
             refresh: true,
             // Self-hosted Instrument Sans, Latin subset, WOFF2 only (resources/fonts/instrument-sans, D-120).
             // 400 (body) and 600 (headings, buttons) are above the fold on every page, so they are preloaded.
