@@ -11,3 +11,8 @@
 
 
  @custom-variant dark (&:where(.dark, .dark *)); /* By Sheaf.dev */ 
+
+/* Hide Alpine-controlled elements until Alpine has initialised them. */
+[x-cloak] {
+    display: none !important;
+}

@@ -1,10 +1,7 @@
-//
 import { Livewire, Alpine } from '../../vendor/livewire/livewire/dist/livewire.esm';
+import { registerPasskeys } from './passkeys';
 
-// now you can register
-// components using Alpine.data(...) and
-// plugins using Alpine.plugin(...) 
+// Register Alpine components (Alpine.data) and plugins before Livewire starts Alpine.
+registerPasskeys(Alpine);
 
-
- 
-Livewire.start()
+Livewire.start();
