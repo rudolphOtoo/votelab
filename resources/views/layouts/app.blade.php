@@ -10,6 +10,8 @@
         <meta property="{{ $property }}" content="{{ $content }}">
     @endforeach
 
+    @fonts
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @livewireStyles
 </head>
