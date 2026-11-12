@@ -94,6 +94,24 @@ Organizers sign in at `/login`; there is no public sign-up.
 - **Tally drift:** if a nominee's counter ever differs from the vote ledger (checked at every reveal), it is
   corrected from the ledger, logged at error level and audited per nominee.
 
+## Organizer screens
+
+From **Dashboard → a program** (all work on a phone: single column, 44 px targets, sticky Save, bottom-sheet
+confirmations):
+
+- **Overview:** details, dates, the late-payment window (10–30 min), the **launch checklist** (publish stays
+  disabled until it passes, including Paystack keys matching the environment), publish/unpublish/archive.
+- **Categories & nominees:** add/edit (pricing only in Draft; price entered in cedis, stored in pesewas),
+  reorder with ↑/↓, open / hide results / show results / close / **reveal** (shows payments still pending;
+  "reveal anyway" needs a tick and your password). Nominees: add/edit with a **4:5 crop editor** (drag, zoom,
+  arrow keys; re-encoded from the private original), archive, and the **share kit** (link, code, WhatsApp
+  share, 1080×1920 Status and 1080×1080 images; never vote counts).
+- **Results & money:** per-category totals checked against the ledger (drift flagged), audited transaction
+  lookups, the refund queue (owners record refunds with an optional Paystack reference), revenue, the audit
+  history, and CSV export (audited; no voter personal data).
+
+Share images use Instrument Sans (`resources/fonts`, SIL Open Font License, `resources/fonts/OFL.txt`).
+
 ## Permissions
 
 Roles: **Owner**, **Admin**, **Staff** (per organization). The table below is generated from
@@ -236,6 +254,10 @@ Stage 3 (hardening) completes this list; the items below are already required.
   are never stored, only an HMAC of them for exact search; **rotating the key breaks phone search on every
   existing transaction** (old hashes stop matching). It falls back to `APP_KEY`, so rotating `APP_KEY` does
   the same while this is unset.
+- [ ] **`NOMINEE_PHOTO_ORIGINAL_DISK` is private** (default `local`): uploaded originals are kept there for
+  re-cropping and must never be web-readable.
+- [ ] **Paystack live keys in production** (`sk_live_…`); the launch checklist refuses to publish a paid
+  program otherwise, and refuses live keys anywhere else.
 - [ ] **`NOMINEE_PHOTO_DISK` is publicly readable** (`public` with `php artisan storage:link`, or a public
   S3 bucket): nominee photos are served from it.
 - [ ] **Failed jobs are pruned:** the scheduler runs `queue:prune-failed --hours=168` daily. A failed
