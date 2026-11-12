@@ -198,8 +198,12 @@ Add the Laravel scheduler to cron:
   empty when the app is reached directly. See `.env.example` before using `*`.
 - Payment decisions are logged to `storage/logs/payments-*.log` (kept 90 days), with ids, amounts and
   statuses only, never raw Paystack payloads or voter emails.
-- **Close grace window:** `VOTING_CLOSE_GRACE_MINUTES` (default 5) is how long a closed category still
-  credits payments that started before it closed. Later payments are recorded as `paid_uncredited` for refund.
+- **Close grace window:** a payment started before a category closed is still credited if Paystack confirms it
+  within `VOTING_CLOSE_GRACE_MINUTES` (default 30) of the close **and** before the reveal; otherwise it is
+  recorded as `paid_uncredited` for refund. Revealing refuses while such payments are still pending, unless
+  the organizer explicitly reveals anyway (those payments are then refunded, not counted).
+- **Withdrawn nominees:** archiving a nominee hides it and refuses new votes; payments started before the
+  archive are still credited, and its votes stay in the results.
 
 All voting settings live in [`config/voting.php`](config/voting.php) and are listed in `.env.example`.
 
@@ -223,6 +227,12 @@ Stage 3 (hardening) completes this list; the items below are already required.
   SPF/DKIM). With the default `log` mailer, invitations and password resets are never delivered.
 - [ ] **Queue worker** and **scheduler** running (see above). Invitation and password-reset emails are
   queued, so without a worker they are never sent.
+- [ ] **`VOTING_PHONE_HASH_KEY` set** (a random 32-byte value) before launch, and kept. Payer phone numbers
+  are never stored, only an HMAC of them for exact search; **rotating the key breaks phone search on every
+  existing transaction** (old hashes stop matching). It falls back to `APP_KEY`, so rotating `APP_KEY` does
+  the same while this is unset.
+- [ ] **`NOMINEE_PHOTO_DISK` is publicly readable** (`public` with `php artisan storage:link`, or a public
+  S3 bucket): nominee photos are served from it.
 - [ ] **Failed jobs are pruned:** the scheduler runs `queue:prune-failed --hours=168` daily. A failed
   invitation or reset email keeps its one-time link in `failed_jobs`; pruning removes it after 7 days.
   Retry failed emails (`php artisan queue:retry`) within that window, or send a new invitation.
