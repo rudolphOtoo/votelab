@@ -223,3 +223,106 @@ it('accepts only webhooks signed with the secret key over the raw body', functio
         ->and($gateway->hasValidWebhookSignature($body, ''))
         ->toBeFalse();
 });
+
+/**
+ * Paystack's recorded test-mode verify response for a Ghana MTN mobile-money payment (D-93).
+ *
+ * @return array<string, mixed>
+ */
+function recordedMobileMoneyVerify(): array
+{
+    /** @var array<string, mixed> */
+    return json_decode(
+        (string) file_get_contents(base_path('tests/Fixtures/paystack/verify-mobile-money-success.json')),
+        true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+}
+
+it('takes the payer phone from authorization.mobile_money_number in Paystack\'s verify response', function (): void {
+    $recorded = recordedMobileMoneyVerify();
+    $reference = $recorded['data']['reference'];
+    fakePaystack([new Response(200, [], json_encode($recorded, JSON_THROW_ON_ERROR))]);
+    Http::fake(['*/transaction/verify/*' => Http::response($recorded)]);
+
+    $verification = app(PaystackPaymentGateway::class)->verify($reference);
+
+    expect($verification->status)
+        ->toBe(GatewayPaymentStatus::Success)
+        ->and($verification->amount)
+        ->toBe(100)
+        ->and($verification->channel)
+        ->toBe('mobile_money')
+        ->and($verification->payerPhone)
+        ->toBe('0551234987');
+    Http::assertSent(
+        static fn(Request $request): bool => (
+            $request->method() === 'GET'
+            && str_ends_with($request->url(), "/transaction/verify/{$reference}")
+            && $request->hasHeader('Authorization', 'Bearer ' . TEST_PAYSTACK_SECRET)
+        ),
+    );
+});
+
+it('leaves the payer phone empty, and the payment verified, when the phone lookup fails', function (): void {
+    $recorded = recordedMobileMoneyVerify();
+    fakePaystack([new Response(200, [], json_encode($recorded, JSON_THROW_ON_ERROR))]);
+    Http::fake(['*/transaction/verify/*' => Http::response(['status' => false], 500)]);
+
+    $verification = app(PaystackPaymentGateway::class)->verify($recorded['data']['reference']);
+
+    expect($verification->status)->toBe(GatewayPaymentStatus::Success)->and($verification->payerPhone)->toBeNull();
+});
+
+it('ignores a phone lookup answered for a different reference', function (): void {
+    $recorded = recordedMobileMoneyVerify();
+    $other = $recorded;
+    $other['data']['reference'] = 'someone-else';
+    fakePaystack([new Response(200, [], json_encode($recorded, JSON_THROW_ON_ERROR))]);
+    Http::fake(['*/transaction/verify/*' => Http::response($other)]);
+
+    expect(app(PaystackPaymentGateway::class)->verify($recorded['data']['reference'])->payerPhone)->toBeNull();
+});
+
+it('does not look up a phone for card payments or unsuccessful payments', function (
+    string $channel,
+    string $status,
+): void {
+    $recorded = recordedMobileMoneyVerify();
+    $recorded['data']['channel'] = $channel;
+    $recorded['data']['status'] = $status;
+    fakePaystack([new Response(200, [], json_encode($recorded, JSON_THROW_ON_ERROR))]);
+    Http::fake();
+
+    expect(app(PaystackPaymentGateway::class)->verify($recorded['data']['reference'])->payerPhone)->toBeNull();
+    Http::assertNothingSent();
+})->with([
+    ['card',         'success'],
+    ['mobile_money', 'failed'],
+    ['mobile_money', 'abandoned'],
+]);
+
+it('stores only the hash and last three digits when a recorded mobile-money payment is credited', function (): void {
+    config(['voting.phone_hash_key' => 'fixture-key']);
+    $recorded = recordedMobileMoneyVerify();
+    $transaction = App\Models\VoteTransaction::factory()->create([
+        'payment_reference' => $recorded['data']['reference'],
+        'gross_amount' => 100,
+        'currency' => 'GHS',
+    ]);
+    fakePaystack([new Response(200, [], json_encode($recorded, JSON_THROW_ON_ERROR))]);
+    Http::fake(['*/transaction/verify/*' => Http::response($recorded)]);
+
+    app(App\Actions\Voting\FulfillPaidVoteOrderAction::class)->execute(
+        $transaction->payment_reference,
+        App\Enums\PaymentTrigger::Webhook,
+    );
+
+    $stored = $transaction->fresh();
+    expect($stored?->status)
+        ->toBe(App\Enums\TransactionStatus::Successful)
+        ->and($stored?->phone_last3)
+        ->toBe('987')
+        ->and($stored?->phone_hash)
+        ->toBe(hash_hmac('sha256', '233551234987', 'fixture-key'));
+});

@@ -1,0 +1,82 @@
+{
+    "status": true,
+    "message": "Verification successful",
+    "data": {
+        "id": 6757165830,
+        "domain": "test",
+        "status": "success",
+        "reference": "2499z4y4v4uspcs",
+        "receipt_number": "10101",
+        "amount": 100,
+        "message": null,
+        "gateway_response": "Approved",
+        "paid_at": "2026-11-12T15:03:13.000Z",
+        "created_at": "2026-11-12T15:03:13.000Z",
+        "channel": "mobile_money",
+        "currency": "GHS",
+        "ip_address": "[removed]",
+        "metadata": 0,
+        "log": {
+            "start_time": 1794495793,
+            "time_spent": 0,
+            "attempts": 0,
+            "errors": 0,
+            "success": false,
+            "mobile": false,
+            "input": [],
+            "history": [
+                {
+                    "type": "action",
+                    "message": "Set payment method to mobile_money",
+                    "time": 0
+                }
+            ]
+        },
+        "fees": 2,
+        "fees_split": null,
+        "authorization": {
+            "authorization_code": "[removed]",
+            "bin": "055XXX",
+            "last4": "X987",
+            "exp_month": "12",
+            "exp_year": "9999",
+            "channel": "mobile_money",
+            "card_type": "",
+            "bank": "MTN",
+            "country_code": "GH",
+            "brand": "Mtn",
+            "reusable": false,
+            "signature": null,
+            "account_name": null,
+            "mobile_money_number": "0551234987"
+        },
+        "customer": {
+            "id": 416572744,
+            "first_name": null,
+            "last_name": null,
+            "email": "momo-fixture@example.com",
+            "customer_code": "[removed]",
+            "phone": null,
+            "metadata": null,
+            "risk_action": "default",
+            "international_format_phone": null
+        },
+        "plan": null,
+        "split": [],
+        "order_id": null,
+        "paidAt": "2026-11-12T15:03:13.000Z",
+        "createdAt": "2026-11-12T15:03:13.000Z",
+        "requested_amount": 100,
+        "pos_transaction_data": null,
+        "source": null,
+        "fees_breakdown": null,
+        "connect": null,
+        "transaction_date": "2026-11-12T15:03:13.000Z",
+        "plan_object": [],
+        "subaccount": []
+    },
+    "_fixture": {
+        "source": "Paystack TEST mode, GET /transaction/verify/:reference for a Ghana MTN mobile-money charge, recorded 2026-11-12",
+        "redactions": "authorization_code, customer_code and ip_address removed; mobile_money_number set to Paystack public test number 0551234987"
+    }
+}

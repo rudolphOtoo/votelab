@@ -29,6 +29,7 @@ final readonly class PaystackPaymentGateway implements PaymentGateway
 
     public function __construct(
         private PaymentManager $payments,
+        private PaystackPayerPhone $payerPhones,
     ) {}
 
     /**
@@ -101,9 +102,9 @@ final readonly class PaystackPaymentGateway implements PaymentGateway
             providerStatus: $result->status,
             channel: $result->channel,
             paidAt: $result->paidAt,
-            // payerPhone stays null for now: PayZephyr's verification DTO drops Paystack's authorization and
-            // customer phone fields, and which field carries a mobile-money number is not yet confirmed
-            // (open question, D-86). Phone search stays empty until it is wired here.
+            payerPhone: $status === GatewayPaymentStatus::Success && $result->channel === 'mobile_money'
+                ? $this->payerPhones->lookup($reference)
+                : null,
         );
     }
 
