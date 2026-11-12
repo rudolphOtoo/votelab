@@ -83,6 +83,16 @@ return [
         ],
 
         // Payment and crediting audit trail (VoteLab and PayZephyr). Never log raw gateway payloads here.
+        // Organizer security trail: invitations, membership changes, organizations created from the CLI.
+        // Ids and roles only, never emails or tokens.
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => 'info',
+            'max_files' => env('LOG_AUDIT_DAYS', 365),
+            'replace_placeholders' => true,
+        ],
+
         'payments' => [
             'driver' => 'daily',
             'path' => storage_path('logs/payments.log'),

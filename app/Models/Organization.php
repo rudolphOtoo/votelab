@@ -35,6 +35,19 @@ final class Organization extends Model
     }
 
     /**
+     * @return HasMany<OrganizationInvitation, $this>
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(OrganizationInvitation::class);
+    }
+
+    public function ownerCount(): int
+    {
+        return $this->users()->wherePivot('role', OrganizationRole::Owner->value)->count();
+    }
+
+    /**
      * Paid votes settle 100% to this subaccount; without one, paid checkout is blocked.
      */
     public function canTakePaidVotes(): bool

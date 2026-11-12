@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Payment\PaymentCallbackController;
 use App\Http\Middleware\EnsureVoterCookie;
+use App\Http\Middleware\RequireTwoFactorForManagers;
+use App\Livewire\Admin\AccountSecurity;
+use App\Livewire\Admin\Dashboard;
+use App\Livewire\Admin\OrganizationMembers;
+use App\Livewire\Auth\AcceptInvitation;
 use App\Livewire\Public\CategoryShow;
 use App\Livewire\Public\ProgramLanding;
 use App\Support\DedicatedSite;
@@ -12,6 +17,35 @@ use Illuminate\Support\Facades\Route;
 Route::get('/payments/callback', PaymentCallbackController::class)->middleware('throttle:30,1')->name(
     'payments.callback',
 );
+
+/*
+ |--------------------------------------------------------------------------
+ | Organizers
+ |--------------------------------------------------------------------------
+ |
+ | Sign-in pages are Fortify's (config/fortify.php). The security page stays reachable when the
+ | two-factor requirement locks the rest of the dashboard. Every path's first segment is a reserved
+ | organization slug (config/organizations.php), so it can never be shadowed by a public page.
+ |
+ */
+
+Route::livewire('/invitations/{invitation}/accept', AcceptInvitation::class)
+    ->middleware(['signed', 'throttle:30,1'])
+    ->whereNumber('invitation')
+    ->name('invitations.accept');
+
+Route::middleware('auth')->group(static function (): void {
+    Route::livewire('/dashboard/security', AccountSecurity::class)
+        ->middleware('password.confirm')
+        ->name('dashboard.security');
+
+    Route::middleware(RequireTwoFactorForManagers::class)->group(static function (): void {
+        Route::livewire('/dashboard', Dashboard::class)->name('dashboard');
+        Route::livewire('/dashboard/organizations/{organization:slug}/members', OrganizationMembers::class)->name(
+            'dashboard.members',
+        );
+    });
+});
 
 /*
  |--------------------------------------------------------------------------

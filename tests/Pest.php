@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Contracts\PaymentGateway;
+use App\Enums\OrganizationRole;
+use App\Models\Organization;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Fakes\FakePaymentGateway;
 use Tests\TestCase;
@@ -60,4 +63,46 @@ function fakeGateway(): FakePaymentGateway
     app()->instance(PaymentGateway::class, $gateway);
 
     return $gateway;
+}
+
+/**
+ * A user who belongs to an organization with the given role (a new organization unless one is given).
+ * Owners and admins get two-factor by default, so the two-factor requirement doesn't get in the way.
+ */
+function organizer(OrganizationRole $role = OrganizationRole::Owner, ?Organization $organization = null): User
+{
+    $organization ??= Organization::factory()->create();
+    $factory = User::factory();
+    $user = ($role === OrganizationRole::Staff ? $factory : $factory->withTwoFactor())->create();
+    $organization->addMember($user, $role);
+
+    return $user;
+}
+
+/**
+ * Mark the current session's password as just confirmed (Fortify's password.confirm).
+ */
+function confirmPassword(): void
+{
+    session()->put('auth.password_confirmed_at', time());
+}
+
+/**
+ * Route the audit log channel to an in-memory handler and return it, so a test can assert entries.
+ */
+function captureAuditLog(): Monolog\Handler\TestHandler
+{
+    $handler = new Monolog\Handler\TestHandler();
+    config(['logging.channels.audit' => ['driver' => 'monolog', 'handler' => Monolog\Handler\NullHandler::class]]);
+    Illuminate\Support\Facades\Log::channel('audit')->getLogger()->setHandlers([$handler]);
+
+    return $handler;
+}
+
+/**
+ * The password every UserFactory user has (a fixture, not a credential).
+ */
+function factoryPassword(): string
+{
+    return 'password';
 }

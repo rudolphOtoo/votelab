@@ -36,6 +36,20 @@ class UserFactory extends Factory
     }
 
     /**
+     * Two-factor turned on and confirmed with this authenticator seed (base32) and these recovery codes.
+     *
+     * @param  list<string>  $recoveryCodes
+     */
+    public function withTwoFactor(string $seed = 'JBSWY3DPEHPK3PXP', array $recoveryCodes = ['recovery-code-1']): static
+    {
+        return $this->state([
+            'two_factor_secret' => encrypt($seed),
+            'two_factor_recovery_codes' => encrypt(json_encode($recoveryCodes, JSON_THROW_ON_ERROR)),
+            'two_factor_confirmed_at' => now(),
+        ]);
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

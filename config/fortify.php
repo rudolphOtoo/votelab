@@ -74,7 +74,7 @@ return [
      |
      */
 
-    'home' => '/home',
+    'home' => '/dashboard',
 
     /*
      |--------------------------------------------------------------------------
@@ -148,6 +148,8 @@ return [
     'passkeys' => [
         'relying_party_id' => parse_url(config('app.url'), PHP_URL_HOST),
         'allowed_origins' => [config('app.url')],
+        // Derives opaque WebAuthn user handles. Fortify's own default, set here so it is visible.
+        'user_handle_secret' => config('app.key'),
         'timeout' => 60_000,
     ],
 

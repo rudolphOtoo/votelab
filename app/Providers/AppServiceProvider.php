@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\PaymentGateway;
+use App\Http\Middleware\RequireTwoFactorForManagers;
+use App\Models\Organization;
+use App\Models\User;
 use App\Services\Payment\PaystackFeeCalculator;
 use App\Services\Payment\PaystackPaymentGateway;
 use App\Services\Security\VoteFingerprintService;
@@ -14,6 +17,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Validation\Rules\Password;
+use Livewire\Livewire;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -32,6 +37,15 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Model::preventLazyLoading(!$this->app->isProduction());
+
+        // Organizer passwords: 12+ characters; in production also refused if found in known breaches
+        // (Have I Been Pwned range API, k-anonymity: only a 5-character hash prefix leaves the server).
+        Password::defaults(fn(): Password => $this->app->isProduction()
+            ? Password::min(12)->uncompromised()
+            : Password::min(12));
+
+        // Re-applied to Livewire update requests from dashboard pages, so actions are blocked too.
+        Livewire::addPersistentMiddleware([RequireTwoFactorForManagers::class]);
 
         $this->configureRateLimiting();
     }
@@ -52,6 +66,15 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute($limits('checkout_per_voter'))->by("voter:{$voter->voterKey}"),
             Limit::perMinute($limits('checkout_per_ip'))->by("ip:{$voter->ipHash}"),
             Limit::perMinute($limits('checkout_per_nominee'))->by("nominee:{$nomineeId}"),
+        ]);
+
+        RateLimiter::for('organization-invitations', static fn(User $inviter, Organization $organization): array => [
+            Limit::perHour((int) config('organizations.invitation_rate_limits.per_inviter_per_hour'))->by(
+                "inviter:{$inviter->id}",
+            ),
+            Limit::perDay((int) config('organizations.invitation_rate_limits.per_organization_per_day'))->by(
+                "organization:{$organization->id}",
+            ),
         ]);
 
         RateLimiter::for('free-vote', static fn(VoterIdentity $voter): array => [

@@ -28,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // pass a client-set value through, and a spoofed host would poison password-reset and signed links.
         $forwarded = Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO;
         $middleware->trustProxies(headers: $forwarded | Request::HEADER_X_FORWARDED_PORT);
+
+        // Ends sessions that predate a password change or two-factor activation (App\Support\SessionEpoch).
+        $middleware->appendToGroup('web', \App\Http\Middleware\EnsureSessionIsCurrent::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(fn(Request $request) => $request->is('api/*') || $request->expectsJson());
