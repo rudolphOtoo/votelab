@@ -8,6 +8,7 @@ use App\Contracts\PaymentGateway;
 use App\Http\Middleware\RequireTwoFactorForManagers;
 use App\Models\Organization;
 use App\Models\User;
+use App\Policies\ProgramReportingPolicy;
 use App\Services\Payment\PaystackFeeCalculator;
 use App\Services\Payment\PaystackPaymentGateway;
 use App\Services\Security\VoteFingerprintService;
@@ -15,6 +16,7 @@ use App\Services\Security\VoterIdentity;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -43,6 +45,11 @@ class AppServiceProvider extends ServiceProvider
         Password::defaults(fn(): Password => $this->app->isProduction()
             ? Password::min(12)->uncompromised()
             : Password::min(12));
+
+        // Program reporting abilities (results, money, ledger reading) live in their own policy class.
+        foreach (ProgramReportingPolicy::ABILITIES as $ability) {
+            Gate::define($ability, [ProgramReportingPolicy::class, $ability]);
+        }
 
         // Re-applied to Livewire update requests from dashboard pages, so actions are blocked too.
         Livewire::addPersistentMiddleware([RequireTwoFactorForManagers::class]);

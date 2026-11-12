@@ -89,6 +89,64 @@ Organizers sign in at `/login`; there is no public sign-up.
 - **Sessions:** changing the password, resetting it, or turning on two-factor signs out every other session.
 - Invitations and membership changes are logged to `storage/logs/audit-*.log` (`LOG_AUDIT_DAYS`, 365).
 
+## Permissions
+
+Roles: **Owner**, **Admin**, **Staff** (per organization). The table below is generated from
+[`App\Support\PermissionMatrix`](app/Support/PermissionMatrix.php), the single source of truth; a test fails if
+this copy drifts. Deny by default: a role without a ✓ is refused, and there is no override for anyone,
+owners included. Phases are the category's: **Draft**; **Live** (voting open, results shown or hidden);
+**Closed**; **Revealed**. A user from another organization is refused every ability.
+
+| Ability | Owner | Admin | Staff | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| `organization.view` | ✓ | ✓ | ✓ | See the dashboard and programs |
+| `organization.updateProfile` | ✓ | ✓ | ✗ | Change name and logo |
+| `organization.updateSlug` | ✓ | ✗ | ✗ | Change the URL slug (reserved list; password confirm; owners emailed) |
+| `organization.updatePayoutSettings` | ✓ | ✗ | ✗ | Change the Paystack subaccount (password confirm; owners emailed) |
+| `members.view` | ✓ | ✓ | ✓ | See members and pending invitations |
+| `members.manage` | ✓ | ✗ | ✗ | Invite, revoke, change roles, remove (owner invites need password confirm) |
+| `members.leave` | ✓ | ✓ | ✓ | Leave the organization (never the last owner) |
+| `program.view` | ✓ | ✓ | ✓ | See a program |
+| `program.create` | ✓ | ✓ | ✗ | Create a program |
+| `program.update` | ✓ | ✓ | ✗ | Edit title, tagline, description, banner, dates |
+| `program.publish` | ✓ | ✓ | ✗ | Publish (launch checklist) / unpublish (no category Live) |
+| `program.archive` | ✓ | ✓ | ✗ | Archive a program |
+| `program.delete` | ✓ | ✗ | ✗ | Delete a program with no vote records or transactions |
+| `category.view` | ✓ | ✓ | ✓ | See a category |
+| `category.create` | ✓ | ✓ | ✗ | Create a category (program not archived) |
+| `category.updateDetails` | ✓ Draft, Live, Closed | ✓ Draft, Live, Closed | ✗ | Edit name and description |
+| `category.updatePricing` | ✓ Draft | ✓ Draft | ✗ | Edit voting mode, price per vote, free-vote limit |
+| `category.reorder` | ✓ | ✓ | ✗ | Change display order |
+| `category.open` | ✓ | ✓ | ✗ | Open voting (Draft → Open) |
+| `category.embargo` | ✓ | ✓ | ✗ | Hide results (→ Embargoed) |
+| `category.unembargo` | ✓ | ✓ | ✗ | Show results again (Embargoed → Open) |
+| `category.close` | ✓ | ✓ | ✗ | Close voting (→ Closed) |
+| `category.reveal` | ✓ | ✓ | ✗ | Reveal the winner (Closed → Revealed) |
+| `category.delete` | ✓ Draft | ✓ Draft | ✗ | Delete a category |
+| `nominee.view` | ✓ | ✓ | ✓ | See a nominee |
+| `nominee.create` | ✓ Draft, Live | ✓ Draft, Live | ✓ Draft | Add a nominee |
+| `nominee.updateProfile` | ✓ Draft, Live, Closed | ✓ Draft, Live, Closed | ✓ Draft, Live | Edit photo and bio |
+| `nominee.rename` | ✓ Draft, Live, Closed | ✓ Draft, Live, Closed | ✓ Draft | Edit name and stage name |
+| `nominee.reorder` | ✓ | ✓ | ✓ Draft | Change display order |
+| `nominee.changeCode` | ✓ Draft | ✓ Draft | ✓ Draft | Change the nominee code |
+| `nominee.changeCategory` | ✓ Draft | ✓ Draft | ✓ Draft | Move to another category (both Draft) |
+| `nominee.archive` | ✓ Draft, Live, Closed | ✓ Draft, Live, Closed | ✗ | Archive (hidden; new votes refused; existing votes kept) |
+| `nominee.delete` | ✓ | ✓ | ✗ | Delete a nominee with no vote records or transactions |
+| `results.view` | ✓ | ✓ | ✓ | See counts in the admin area while results are public |
+| `results.viewHidden` | ✓ | ✓ | ✗ | See live counts while results are hidden (admin area only) |
+| `results.export` | ✓ | ✓ | ✗ | Export reconciled results (no voter personal data) |
+| `results.audit` | ✓ | ✓ | ✗ | Check tallies against vote records |
+| `transactions.view` | ✓ | ✓ | ✗ | Search and view transactions |
+| `refunds.view` | ✓ | ✓ | ✗ | See the refund queue |
+| `refunds.record` | ✓ | ✗ | ✗ | Record a refund as done (password confirm; no money moves) |
+| `revenue.view` | ✓ | ✓ | ✗ | See revenue totals |
+| `ledger.write` | ✗ | ✗ | ✗ | Create, change or delete vote records or transactions |
+
+Policies (`app/Policies`) add the data rules named in the notes: a valid status change, no vote records or
+transactions before deleting, the program not archived, results public (`results.view`) or hidden
+(`results.viewHidden`). Vote records and transactions are written only by the voting system; corrections are
+recorded refunds, which never change them.
+
 ## Operations
 
 ### Paystack

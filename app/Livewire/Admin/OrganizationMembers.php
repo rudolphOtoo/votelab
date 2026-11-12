@@ -37,7 +37,7 @@ final class OrganizationMembers extends Component
 
     public function mount(Organization $organization): void
     {
-        Gate::authorize('view', $organization);
+        Gate::authorize('viewMembers', $organization);
 
         $this->organizationId = $organization->id;
     }
@@ -134,7 +134,7 @@ final class OrganizationMembers extends Component
     private function organization(): Organization
     {
         $organization = Organization::query()->findOrFail($this->organizationId);
-        Gate::authorize('view', $organization); // Re-checked on every request, not only at mount.
+        Gate::authorize('viewMembers', $organization); // Re-checked on every request, not only at mount.
 
         return $organization;
     }

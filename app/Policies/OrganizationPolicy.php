@@ -4,37 +4,51 @@ declare(strict_types=1);
 
 namespace App\Policies;
 
-use App\Enums\OrganizationRole;
+use App\Enums\OrganizationAbility;
 use App\Models\Organization;
 use App\Models\User;
+use App\Policies\Concerns\ChecksPermissionMatrix;
 
 /**
- * Stage 2a abilities for organization membership. Stage 2b folds these into the role × ability matrix.
- * Every ability denies non-members, so a user from another organization never passes.
+ * Organization and membership abilities (App\Support\PermissionMatrix). Password confirmation, owner
+ * emails and the last-owner guard are enforced by the actions, not here.
  */
 final class OrganizationPolicy
 {
-    /**
-     * See the organization's dashboard, members and pending invitations.
-     */
+    use ChecksPermissionMatrix;
+
     public function view(User $user, Organization $organization): bool
     {
-        return $user->roleIn($organization) !== null;
+        return $this->granted($user, $organization->id, OrganizationAbility::OrganizationView);
     }
 
-    /**
-     * Invite, revoke invitations, change roles and remove members: owners only.
-     */
+    public function updateProfile(User $user, Organization $organization): bool
+    {
+        return $this->granted($user, $organization->id, OrganizationAbility::OrganizationUpdateProfile);
+    }
+
+    public function updateSlug(User $user, Organization $organization): bool
+    {
+        return $this->granted($user, $organization->id, OrganizationAbility::OrganizationUpdateSlug);
+    }
+
+    public function updatePayoutSettings(User $user, Organization $organization): bool
+    {
+        return $this->granted($user, $organization->id, OrganizationAbility::OrganizationUpdatePayoutSettings);
+    }
+
+    public function viewMembers(User $user, Organization $organization): bool
+    {
+        return $this->granted($user, $organization->id, OrganizationAbility::MembersView);
+    }
+
     public function manageMembers(User $user, Organization $organization): bool
     {
-        return $user->roleIn($organization) === OrganizationRole::Owner;
+        return $this->granted($user, $organization->id, OrganizationAbility::MembersManage);
     }
 
-    /**
-     * Leave the organization (the last owner can't; RemoveMemberAction enforces that).
-     */
     public function leave(User $user, Organization $organization): bool
     {
-        return $user->roleIn($organization) !== null;
+        return $this->granted($user, $organization->id, OrganizationAbility::MembersLeave);
     }
 }
