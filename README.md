@@ -239,6 +239,19 @@ Add the Laravel scheduler to cron:
 
 All voting settings live in [`config/voting.php`](config/voting.php) and are listed in `.env.example`.
 
+### Monitoring and recovery
+
+- **`GET /health`** (JSON, for uptime monitors): `ok`, `degraded` (queue backing up, jobs failed in the last
+  24 h, scheduler stopped) or `down` with HTTP 503 (database or the shared lock store failing). `/up` only
+  says the process is alive.
+- **Alerts** (`storage/logs/alerts-*.log`, and Sentry when `SENTRY_LARAVEL_DSN` is set): every failed job,
+  `fulfilment.gave_up` (a paid vote may be uncredited: verify it by hand), and tally drift.
+- **Sentry** never receives phone numbers or email addresses: `send_default_pii` is off, SQL bindings are
+  never sent, and every event and breadcrumb is scrubbed (`App\Support\Observability\PiiScrubber`).
+- **Tallies:** `php artisan votes:rebuild-tallies org-slug/program-slug --dry-run` compares every nominee's
+  counter with the vote ledger; without `--dry-run` it fixes counters from the ledger (`--force` in
+  production). The scheduler runs `--all --dry-run` at 03:00 and alerts on any drift.
+
 ## Production checklist
 
 Stage 3 (hardening) completes this list; the items below are already required.
@@ -269,6 +282,14 @@ Stage 3 (hardening) completes this list; the items below are already required.
   program otherwise, and refuses live keys anywhere else.
 - [ ] **`NOMINEE_PHOTO_DISK` is publicly readable** (`public` with `php artisan storage:link`, or a public
   S3 bucket): nominee photos are served from it.
+- [ ] **The boot guard passes.** In production the app refuses to start (web and CLI) unless: the cache store
+  holds atomic locks shared by all servers (not `array` or `file`), `APP_DEBUG=false`, `PAYSTACK_SECRET_KEY`
+  is a live key, and `VOTING_PHONE_HASH_KEY` is set. The error lists every problem.
+- [ ] **Sentry DSN set** (`SENTRY_LARAVEL_DSN`) and alert rules created for `queue.job_failed`,
+  `fulfilment.gave_up`, `tally.drift` and `tally.drift_nightly`.
+- [ ] **An uptime monitor watches `/health`** (alert on 503 and on `"status":"degraded"`).
+- [ ] **Rate limits fit your venue** (`VOTING_RATE_*`, per minute): voter limits are per device with high
+  per-network backstops for carrier-grade NAT and venue Wi-Fi; raise `*_PER_IP` for very large venues.
 - [ ] **Failed jobs are pruned:** the scheduler runs `queue:prune-failed --hours=168` daily. A failed
   invitation or reset email keeps its one-time link in `failed_jobs`; pruning removes it after 7 days.
   Retry failed emails (`php artisan queue:retry`) within that window, or send a new invitation.
