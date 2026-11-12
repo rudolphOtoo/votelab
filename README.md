@@ -72,6 +72,23 @@ composer check        # all of the above
 - Organization slugs must not clash with fixed paths (`api`, `payments`, `livewire-*`, `up`, Fortify routes);
   fixed routes always win.
 
+## Organizers
+
+Organizers sign in at `/login`; there is no public sign-up.
+
+- **First owner:** `php artisan organizations:create "Accra Campus Creatives" accra-campus-creatives --owner=owner@example.com`
+  creates the organization (idempotent: re-running never duplicates, renames or re-sends) and emails an
+  owner invitation. The slug is checked against `config/organizations.php` `reserved_slugs`. In production
+  add `--force`.
+- **Invitations:** owners invite from **Dashboard → Members**. Links are signed, single-use and expire after
+  `ORGANIZER_INVITATION_TTL_HOURS` (72). Re-inviting an email withdraws the older link; existing members
+  can't be invited; sending is rate limited. Inviting or promoting an owner asks for the password again.
+- **Owners:** an organization always keeps at least one owner (no demoting, removing or leaving as the last one).
+- **Two-factor:** owners and admins must turn it on within `ORGANIZER_TWO_FACTOR_GRACE_DAYS` (7) of their
+  first sign-in; after that only **Security** stays open until they do. Passkeys are supported too.
+- **Sessions:** changing the password, resetting it, or turning on two-factor signs out every other session.
+- Invitations and membership changes are logged to `storage/logs/audit-*.log` (`LOG_AUDIT_DAYS`, 365).
+
 ## Operations
 
 ### Paystack
@@ -141,5 +158,11 @@ Stage 3 (hardening) completes this list; the items below are already required.
     Cloudflare's own address look like the voter, so everyone behind it shares one rate limit.
   - Don't use `*` behind Cloudflare: it lets a voter forge their IP via `X-Forwarded-For`.
 - [ ] **Paystack webhook** registered at `https://<host>/api/webhooks/paystack` (see [Paystack](#paystack)).
-- [ ] **Queue worker** and **scheduler** running (see above).
+- [ ] **`APP_URL` is the exact public URL** (`https://` and the host voters and organizers use). Invitation
+  and password-reset links are signed against it, and passkeys only work on that host (`relying_party_id`
+  and `allowed_origins` derive from it). A mismatch behind a proxy makes every invitation link fail with 403.
+- [ ] **Mail provider configured** (`MAIL_MAILER` and its credentials, `MAIL_FROM_ADDRESS` on a domain with
+  SPF/DKIM). With the default `log` mailer, invitations and password resets are never delivered.
+- [ ] **Queue worker** and **scheduler** running (see above). Invitation and password-reset emails are
+  queued, so without a worker they are never sent.
 - [ ] **Cache and locks on Redis** with `noeviction` (see [Cache, locks and logs](#cache-locks-and-logs)).
