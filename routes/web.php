@@ -42,6 +42,12 @@ Route::get('/payments/callback', PaymentCallbackController::class)->middleware('
 // Design-system component gallery: outside production only (the component returns 404 in production).
 Route::livewire('/dev/components', App\Livewire\Dev\ComponentGallery::class)->name('dev.components');
 
+// Payment result pages for local preview (plan/PREVIEW.md): APP_ENV=local only, 404 everywhere else; read only.
+Route::get('/dev/payments/{status}', App\Http\Controllers\Dev\PaymentResultPreviewController::class)->where(
+    'status',
+    '[a-z_]+',
+)->name('dev.payments.preview');
+
 // Health for uptime monitors (D-109): JSON, 503 when votes can't be taken safely.
 Route::get('/health', HealthController::class)->middleware('throttle:health')->name('health');
 
