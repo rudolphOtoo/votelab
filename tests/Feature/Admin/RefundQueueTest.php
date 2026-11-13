@@ -90,3 +90,16 @@ it('keeps refund records append-only', function (): void {
         ->and($record->delete(...))
         ->toThrow(LogicException::class);
 });
+
+it('refuses a duplicate refund without breaking the surrounding transaction (PostgreSQL savepoint)', function (): void {
+    $transaction = uncredited();
+    $owner = organizer(OrganizationRole::Owner, $transaction->organization);
+
+    // The test already runs inside a transaction (RefreshDatabase), like a caller that wraps the action.
+    recordRefund($transaction, $owner);
+    expect(fn() => recordRefund($transaction, $owner))
+        ->toThrow(ValidationException::class, 'This refund has already been recorded.');
+
+    // On PostgreSQL a failed statement outside a savepoint aborts the whole transaction: this would fail.
+    expect(RefundRecord::query()->where('vote_transaction_id', $transaction->id)->count())->toBe(1);
+});

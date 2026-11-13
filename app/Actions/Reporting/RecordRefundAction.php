@@ -13,6 +13,7 @@ use App\Support\Audit;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
@@ -81,14 +82,20 @@ final readonly class RecordRefundAction
         }
 
         try {
-            $record = new RefundRecord();
-            $record->forceFill([
-                'vote_transaction_id' => $transaction->id,
-                'organization_id' => $transaction->organization_id,
-                'recorded_by_user_id' => $actor->id,
-                'reason' => $data['reason'],
-                'paystack_refund_reference' => $data['paystack_refund_reference'],
-            ])->save();
+            // Its own transaction: when a caller's transaction is open this is a savepoint, so a duplicate rolls
+            // back only this insert (PostgreSQL otherwise aborts the caller's whole transaction).
+            $record = DB::transaction(static function () use ($transaction, $actor, $data): RefundRecord {
+                $record = new RefundRecord();
+                $record->forceFill([
+                    'vote_transaction_id' => $transaction->id,
+                    'organization_id' => $transaction->organization_id,
+                    'recorded_by_user_id' => $actor->id,
+                    'reason' => $data['reason'],
+                    'paystack_refund_reference' => $data['paystack_refund_reference'],
+                ])->save();
+
+                return $record;
+            });
         } catch (UniqueConstraintViolationException) {
             throw ValidationException::withMessages(['refund' => 'This refund has already been recorded.']);
         }
