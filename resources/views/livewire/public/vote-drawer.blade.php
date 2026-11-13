@@ -75,6 +75,7 @@
                     <span wire:loading.remove wire:target="castFreeVote">Cast my free vote</span>
                     <span wire:loading wire:target="castFreeVote">Casting your vote…</span>
                 </x-ui.button>
+                <p class="mt-2 text-center text-xs text-ink-secondary" data-votes-final>Votes are final once counted.</p>
             @elseif ($allowsPaid)
                 <form id="vote-form" wire:submit="checkout">
                     <p class="text-sm text-ink-secondary"><span class="font-semibold tabular-nums text-ink">{{ Money::format($category->price_per_vote) }}</span> per vote</p>
@@ -164,6 +165,8 @@
                     <x-ui.icon name="lock" class="size-3.5" />
                     Mobile money (MTN, Telecel, AirtelTigo) or card
                 </p>
+                {{-- D-134: refunds exist only for payments received but not counted (D-98). --}}
+                <p class="mt-1 text-center text-xs text-ink-secondary" data-votes-final>Votes are final once counted and can't be refunded.</p>
             </footer>
         @endif
     </section>
