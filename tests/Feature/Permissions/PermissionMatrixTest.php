@@ -11,22 +11,7 @@ use App\Enums\OrganizationRole;
 use App\Enums\ReportingAbility;
 use App\Support\PermissionMatrix;
 
-/**
- * @return array<string, array{owner: string, admin: string, staff: string}>
- */
-function approvedMatrix(): array
-{
-    static $matrix = null;
-
-    return $matrix ??= require __DIR__ . '/approved-matrix.php';
-}
-
-function approved(string $ability, OrganizationRole $role, CategoryPhase $phase): bool
-{
-    $grant = approvedMatrix()[$ability][$role->value];
-
-    return $grant === '*' || $grant !== '' && str_contains($grant, strtoupper($phase->value[0]));
-}
+require_once __DIR__ . '/approved-matrix-helpers.php';
 
 it('lists every ability exactly once, with nothing extra', function (): void {
     $abilities = array_map(static fn(Ability $a): string => $a->value, PermissionMatrix::abilities());

@@ -15,7 +15,7 @@ use App\Models\VoteRecord;
 use App\Models\VoteTransaction;
 use Illuminate\Support\Facades\Gate;
 
-require_once __DIR__ . '/PermissionMatrixTest.php';
+require_once __DIR__ . '/approved-matrix-helpers.php';
 
 /**
  * A fixture organization with a published program, one category in the given status, and a nominee.
