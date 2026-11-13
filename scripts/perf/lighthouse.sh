@@ -64,7 +64,8 @@ ENV
 cd "$APP"
 php artisan migrate --seed --force >/dev/null
 php artisan storage:link >/dev/null 2>&1 || true
-php artisan tinker --execute="$(cat "$REPO/scripts/perf/seed-payment-states.php")" >/dev/null
+php "$REPO/scripts/perf/seed-payment-states.php" >/dev/null
+php artisan votes:rebuild-tallies --all --dry-run | grep -q "No drift" || { echo "perf seed left vote drift" >&2; exit 1; }
 php artisan config:cache >/dev/null && php artisan route:cache >/dev/null && php artisan view:cache >/dev/null
 
 echo "→ Starting php-fpm and nginx (HTTP/2, TLS, gzip) on $BASE"
