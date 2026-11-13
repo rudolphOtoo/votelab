@@ -1,4 +1,4 @@
-// Organizer dashboard: adds passkeys (security page) and the photo crop editor.
+// Organizer dashboard: adds passkeys (security page; the client loads only when used) and the photo crop editor.
 import { Livewire, Alpine } from '../../../vendor/livewire/livewire/dist/livewire.esm';
 import { registerPasskeys } from '../passkeys';
 import { registerCropEditor } from '../crop';
