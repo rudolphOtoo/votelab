@@ -6,6 +6,7 @@ use App\Contracts\PaymentGateway;
 use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Foundation\Testing\DatabaseTruncation;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Fakes\FakePaymentGateway;
 use Tests\TestCase;
@@ -23,6 +24,8 @@ use Tests\TestCase;
 
 pest()->extend(TestCase::class)->use(RefreshDatabase::class)->in('Feature');
 pest()->extend(Tests\BrowserTestCase::class)->use(RefreshDatabase::class)->in('Browser');
+// Real races between connections need committed data, so these tests truncate instead of wrapping in a transaction.
+pest()->extend(TestCase::class)->use(DatabaseTruncation::class)->group('concurrency')->in('Concurrency');
 
 /*
  |--------------------------------------------------------------------------
