@@ -34,14 +34,25 @@ export function registerStage(Alpine, Livewire) {
         },
     }));
 
-    Alpine.data('stageReveal', (categoryId) => ({
+    // The reveal plays once per category per screen: "And the winner is…", a pause, then the podium and three
+    // confetti bursts in the organization's colour. Under prefers-reduced-motion the podium shows at once, with
+    // no confetti; after the first showing (or a re-render on poll) it stays on the podium.
+    Alpine.data('stageReveal', (categoryId, accent) => ({
+        phase: revealed.has(categoryId) || reducedMotion() ? 'show' : 'intro',
+
         init() {
-            if (revealed.has(categoryId) || reducedMotion()) return;
+            if (this.phase === 'show') return;
             revealed.add(categoryId);
-            const gold = ['#FBBF24', '#F59E0B', '#FDE68A', '#FFFFFF'];
-            [0, 350, 700].forEach((delay, i) => {
-                setTimeout(() => confetti({ particleCount: 140, spread: 90, startVelocity: 55, origin: { x: [0.2, 0.8, 0.5][i], y: 0.6 }, colors: gold, disableForReducedMotion: true }), delay);
-            });
+            setTimeout(() => {
+                this.phase = 'show';
+                const canvas = document.querySelector('[data-stage-confetti]');
+                const fire = canvas ? confetti.create(canvas, { resize: true, disableForReducedMotion: true }) : confetti;
+                const colors = [accent, '#FFFFFF', accent, '#F5F5F4'];
+                if (canvas) canvas.dataset.fired = 'true';
+                [0, 350, 700].forEach((delay, i) => {
+                    setTimeout(() => fire({ particleCount: 140, spread: 90, startVelocity: 55, origin: { x: [0.2, 0.8, 0.5][i], y: 0.6 }, colors, disableForReducedMotion: true }), delay);
+                });
+            }, 1800);
         },
     }));
 }

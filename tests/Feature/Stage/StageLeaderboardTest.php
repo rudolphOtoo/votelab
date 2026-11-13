@@ -131,7 +131,7 @@ it('plays the reveal with the winner after RevealWinnerAction, and only then', f
         ->toContain('stageReveal')
         ->toContain('Stagename0 Person')
         ->toContain('731,542 votes')
-        ->and(substr_count($html, 'ring-[#FBBF24]'))
+        ->and(substr_count($html, 'data-stage-winner'))
         ->toBe(1);
 });
 
@@ -140,7 +140,7 @@ it('crowns joint winners on a tie', function (): void {
 
     $html = stage($program)->html();
 
-    expect($html)->toContain('Joint winners')->and(substr_count($html, 'ring-[#FBBF24]'))->toBe(2);
+    expect($html)->toContain('Joint winners')->and(substr_count($html, 'data-stage-winner'))->toBe(2);
 });
 
 it('leaves archived nominees off the stage, even with the most votes', function (CategoryStatus $status): void {
@@ -225,4 +225,19 @@ it('ships the reduced-motion, wake-lock and quiet-failure hooks', function (): v
         ->toContain("navigator.wakeLock.request('screen')")
         ->toContain('prefers-reduced-motion: reduce')
         ->toContain('preventDefault()');
+});
+
+it('brands the stage screen with the organization colour and logo', function (): void {
+    $organization = App\Models\Organization::factory()->create([
+        'slug' => 'campus',
+        'logo_url' => 'https://cdn.example/logo.webp',
+        'settings' => ['brand_color' => '#8b1e3f'],
+    ]);
+    App\Models\AwardProgram::factory()->for($organization)->create(['slug' => 'awards']);
+
+    $this
+        ->get('/stage/campus/awards')
+        ->assertOk()
+        ->assertSee('--stage-accent: ' . App\Support\Design\StageBranding::accent($organization) . ';', escape: false)
+        ->assertSee('https://cdn.example/logo.webp', escape: false);
 });

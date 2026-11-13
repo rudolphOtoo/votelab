@@ -7,6 +7,7 @@ namespace App\Livewire\Stage;
 use App\Models\AwardProgram;
 use App\Models\Organization;
 use App\Services\Security\VoteFingerprintService;
+use App\Support\Design\StageBranding;
 use App\Support\StageScene;
 use App\Support\Throttle;
 use Illuminate\Contracts\View\View;
@@ -55,6 +56,7 @@ final class StageLeaderboard extends Component
         return view('livewire.stage.stage-leaderboard', [
             'program' => $program,
             'scene' => StageScene::for($program, $this->pinned),
+            'accent' => StageBranding::accent($program->organization),
         ])->title("{$program->title} · Stage");
     }
 }
