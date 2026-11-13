@@ -33,7 +33,9 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Private: uploaded nominee originals live here (NOMINEE_PHOTO_ORIGINAL_DISK). No /storage/{path}
+            // route serves it; organizers get originals through NomineeOriginalPhotoController's permission check.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
