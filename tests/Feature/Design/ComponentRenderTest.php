@@ -79,10 +79,6 @@ it('renders a table as stacked cards on phones and a captioned table from 640 px
         ->toContain('No votes yet.');
 });
 
-it('formats money from integer pesewas', function (): void {
-    expect((string) $this->blade('<x-ui.money :pesewas="125_000" />'))->toContain(App\Support\Money::format(125_000));
-});
-
 it('gives buttons a 44 px minimum target and renders links as anchors', function (): void {
     expect((string) $this->blade('<x-ui.button>Vote</x-ui.button>'))
         ->toContain('type="submit"')

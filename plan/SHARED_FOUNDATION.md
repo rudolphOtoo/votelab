@@ -19,7 +19,7 @@ We inspected `TicketLab`'s dependency tree and performed strict anti-bloat triag
 | `laravel/fortify` | `^1.37` | **CORE** | Headless authentication (passkeys, 2FA, session security) for admin/staff. |
 | `spatie/simple-excel` | `*` | **CORE** | High-performance, streaming CSV/Excel export for vote tallying and audit reports. |
 | `wireui/heroicons` | `^2.10` | **CORE** | Consistent SVG icons integrated with Blade components. |
-| `sheaf/cli` | `^1.3` (dev) | **CORE** | Design component engine providing Sheaf UI components. |
+| ~~`sheaf/cli`~~ | removed | — | Removed in D-123; the design system is our own Blade components (D-114). |
 | `carthage-software/mago` | `^1.58` (dev) | **CORE** | Zero-config, ultra-fast PHP linter, formatter, and static analysis. |
 | `larastan/larastan` | `^3.9` (dev) | **CORE** | PHPStan Level 7 enforcement for strict type safety. |
 | `pestphp/pest` | `^5.3` (dev) | **CORE** | Expressive testing suite for unit and feature testing. |

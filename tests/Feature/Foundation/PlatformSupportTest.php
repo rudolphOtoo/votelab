@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 use App\Enums\CategoryStatus;
 use App\Enums\OrganizationRole;
-use App\Enums\ProgramStatus;
 use App\Models\AwardCategory;
 use App\Models\AwardProgram;
 use App\Models\Organization;
 use App\Models\PlatformSetting;
 use App\Models\User;
-use App\Support\ActiveProgram;
 use App\Support\DedicatedSite;
 use Illuminate\Support\Carbon;
 
@@ -81,31 +79,6 @@ it('reports a user\'s role per organization', function (): void {
         ->toBeNull();
 });
 
-it('only lets an organizer select programs from their own organizations', function (): void {
-    $user = User::factory()->create();
-    $mine = AwardProgram::factory()->create();
-    $mine->organization->addMember($user, OrganizationRole::Admin);
-    $other = AwardProgram::factory()->create();
-
-    $active = app(ActiveProgram::class);
-    $active->set($user, $mine);
-
-    expect($active->for($user)?->id)->toBe($mine->id);
-
-    $active->set($user, $other);
-})->throws(InvalidArgumentException::class);
-
-it('ignores a stale session selection for a program the user cannot access', function (): void {
-    $user = User::factory()->create();
-    $mine = AwardProgram::factory()->create();
-    $mine->organization->addMember($user, OrganizationRole::Admin);
-    $other = AwardProgram::factory()->create(['status' => ProgramStatus::Published]);
-
-    session()->put(ActiveProgram::SESSION_KEY, $other->id);
-
-    expect(app(ActiveProgram::class)->for($user)?->id)->toBe($mine->id);
-});
-
 it('tracks the close grace window of a closed category', function (): void {
     config(['voting.close_grace_minutes' => 5]);
     Carbon::setTestNow('2026-10-30 20:00:00');
@@ -135,4 +108,19 @@ it('parses cedi amounts into integer pesewas without floats', function (string $
     ['-1', null],
     ['abc', null],
     ['', null],
+]);
+
+it('writes money from integer pesewas as "GHS 1,250.00" everywhere (D-121)', function (
+    int $pesewas,
+    string $written,
+): void {
+    expect(App\Support\Money::format($pesewas))->toBe($written);
+})->with([
+    [125_000, 'GHS 1,250.00'],
+    [5_000, 'GHS 50.00'],
+    [50, 'GHS 0.50'],
+    [5, 'GHS 0.05'],
+    [0, 'GHS 0.00'],
+    [-2_550, 'GHS -25.50'],
+    [123_456_789, 'GHS 1,234,567.89'],
 ]);

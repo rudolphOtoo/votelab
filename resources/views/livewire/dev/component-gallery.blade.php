@@ -65,7 +65,7 @@
             <x-ui.button type="button" size="sm" variant="secondary">Small</x-ui.button>
             <x-ui.button href="#buttons" variant="secondary">Link button <x-ui.icon name="chevron-right" class="size-4" /></x-ui.button>
         </div>
-        <x-ui.button type="button" size="lg" block class="mt-4">Pay <x-ui.money :pesewas="5000" /></x-ui.button>
+        <x-ui.button type="button" size="lg" block class="mt-4">Pay {{ \App\Support\Money::format(5000) }}</x-ui.button>
     </section>
 
     {{-- Forms --}}
@@ -122,7 +122,7 @@
             <x-ui.progress label="4 of 6 done" :value="4" :max="6" />
             <x-slot:footer><x-ui.button type="button" size="sm" variant="secondary">Fix the next item</x-ui.button></x-slot:footer>
         </x-ui.card>
-        <p class="mt-4 text-2xl font-semibold text-ink">Total <x-ui.money :pesewas="125000" /></p>
+        <p class="mt-4 text-2xl font-semibold text-ink">Total <span class="tabular-nums">{{ \App\Support\Money::format(125000) }}</span></p>
     </section>
 
     {{-- Nominee photos and avatars --}}
