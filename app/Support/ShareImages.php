@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Models\Nominee;
+use App\Support\Design\StageBranding;
 use App\Support\Images\TextStyle;
 use App\Support\Images\TextWriter;
+use ErrorException;
 use GdImage;
 use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
@@ -23,15 +25,13 @@ final class ShareImages
 {
     public const array FORMATS = ['og' => [1200, 630], 'square' => [1080, 1080], 'story' => [1080, 1920]];
 
-    private const int VERSION = 1;
+    private const int VERSION = 2; // 2: organization colour and logo (D-131)
 
     private const array BACKGROUND = [18, 19, 22]; // Stage basalt #121316
 
     private const array INK = [245, 245, 244];
 
     private const array MUTED = [168, 162, 158];
-
-    private const array GOLD = [251, 191, 36]; // #FBBF24
 
     /**
      * The stored image path for a format, rendering it first if it isn't cached.
@@ -58,6 +58,17 @@ final class ShareImages
         self::disk()->deleteDirectory("share/{$nomineeId}");
     }
 
+    /**
+     * Every cached image of an organization's nominees (its name, logo or colour changed).
+     */
+    public static function forgetOrganization(int $organizationId): void
+    {
+        Nominee::query()
+            ->where('organization_id', $organizationId)
+            ->pluck('id')
+            ->each(self::forget(...));
+    }
+
     public static function disk(): \Illuminate\Contracts\Filesystem\Filesystem
     {
         return Storage::disk((string) config('organizations.nominee_photos.disk'));
@@ -77,6 +88,8 @@ final class ShareImages
                 $nominee->awardCategory->name,
                 $nominee->awardProgram->title,
                 $nominee->awardProgram->organization->name,
+                $nominee->awardProgram->organization->logo_path,
+                StageBranding::accent($nominee->awardProgram->organization),
             ])),
             0,
             16,
@@ -94,6 +107,7 @@ final class ShareImages
         };
 
         self::drawPhoto($canvas, $nominee, $layout['photo']);
+        self::drawLogo($canvas, $nominee, $width);
 
         [$tx, $ty, $tw] = $layout['text'];
         [$nameSize, $codeSize, $small] = $layout['sizes'];
@@ -119,7 +133,7 @@ final class ShareImages
             $canvas,
             $nominee->nominee_code,
             [$tx, $y + 8, $tw],
-            new TextStyle($codeSize, self::GOLD, bold: true),
+            new TextStyle($codeSize, self::accent($nominee), bold: true),
         );
         $y = TextWriter::draw(
             $canvas,
@@ -138,6 +152,44 @@ final class ShareImages
         imagejpeg($canvas, null, 86);
 
         return (string) ob_get_clean();
+    }
+
+    /**
+     * The organization's colour, made readable on the dark background (StageBranding::accent), as RGB.
+     *
+     * @return array{int<0, 255>, int<0, 255>, int<0, 255>}
+     */
+    private static function accent(Nominee $nominee): array
+    {
+        return StageBranding::rgb($nominee->awardProgram->organization);
+    }
+
+    /**
+     * An uploaded organization logo, top right, fitted in an 80 px box. External logo URLs are never fetched.
+     */
+    private static function drawLogo(GdImage $canvas, Nominee $nominee, int $width): void
+    {
+        $path = $nominee->awardProgram->organization->logo_path;
+
+        if (!is_string($path) || !OrganizationLogo::disk()->exists($path)) {
+            return;
+        }
+
+        try {
+            $logo = imagecreatefromstring((string) OrganizationLogo::disk()->get($path));
+        } catch (ErrorException) {
+            return; // A damaged logo file: draw the image without it.
+        }
+
+        if ($logo === false) {
+            return;
+        }
+
+        $box = 80;
+        $scale = min($box / imagesx($logo), $box / imagesy($logo));
+        $w = max(1, (int) round(imagesx($logo) * $scale));
+        $h = max(1, (int) round(imagesy($logo) * $scale));
+        imagecopyresampled($canvas, $logo, $width - 60 - $w, 40, 0, 0, $w, $h, imagesx($logo), imagesy($logo));
     }
 
     private static function canvas(int $width, int $height): GdImage

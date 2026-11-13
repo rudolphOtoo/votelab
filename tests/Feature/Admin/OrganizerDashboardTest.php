@@ -180,7 +180,7 @@ it('saves name and logo directly, and asks for the password before link or payou
         ->test(OrganizationSettings::class, ['organization' => $organization])
         ->set('name', 'New Name')
         ->call('saveProfile')
-        ->assertSee('Name and logo saved.')
+        ->assertSee('Name, logo and colour saved.')
         ->set('slug', 'new-slug')
         ->call('saveLink')
         ->assertRedirect(route('password.confirm'));

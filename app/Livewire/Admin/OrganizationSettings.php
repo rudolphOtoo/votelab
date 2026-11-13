@@ -11,6 +11,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
 use Livewire\Component;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
+use Livewire\WithFileUploads;
 
 /**
  * Organization settings, the "Settings" tab of the organization page (UI Step 3). Every rule is
@@ -19,16 +21,20 @@ use Livewire\Component;
  */
 final class OrganizationSettings extends Component
 {
+    use WithFileUploads;
+
     #[Locked]
     public int $organizationId;
 
     public string $name = '';
 
-    public string $logo_url = '';
-
     public string $slug = '';
 
     public string $paystack_subaccount_code = '';
+
+    public string $brand_color = '';
+
+    public ?TemporaryUploadedFile $logo = null;
 
     public ?string $notice = null;
 
@@ -39,19 +45,28 @@ final class OrganizationSettings extends Component
         $this->organizationId = $organization->id;
         $this->fill([
             'name' => $organization->name,
-            'logo_url' => (string) $organization->logo_url,
             'slug' => $organization->slug,
             'paystack_subaccount_code' => (string) $organization->paystack_subaccount_code,
+            'brand_color' => (string) ($organization->settings['brand_color'] ?? ''),
         ]);
     }
 
     public function saveProfile(UpdateOrganizationSettingsAction $update): void
     {
-        $this->apply(
-            $update,
-            ['name' => trim($this->name), 'logo_url' => trim($this->logo_url) === '' ? null : trim($this->logo_url)],
-            'Name and logo saved.',
-        );
+        $color = strtolower(trim($this->brand_color));
+        $input = ['name' => trim($this->name), 'brand_color' => $color === '' ? null : $color];
+
+        if ($this->logo !== null) {
+            $input['logo'] = $this->logo;
+        }
+
+        $this->apply($update, $input, 'Name, logo and colour saved.');
+        $this->reset('logo');
+    }
+
+    public function removeLogo(UpdateOrganizationSettingsAction $update): void
+    {
+        $this->apply($update, ['logo_url' => null], 'Logo removed.');
     }
 
     public function saveLink(UpdateOrganizationSettingsAction $update): void
@@ -80,6 +95,12 @@ final class OrganizationSettings extends Component
             'canSlug' => $user->can('updateSlug', $organization),
             'canPayout' => $user->can('updatePayoutSettings', $organization),
             'confirmUrl' => route('password.confirm'),
+            'preview' => \App\Support\Design\Contrast::isHex($this->brand_color)
+                ? \App\Support\Design\Branding::fromColor(strtolower($this->brand_color))
+                : \App\Support\Design\Branding::votelab(),
+            'stageAccent' => \App\Support\Design\StageBranding::accentFor($this->brand_color),
+            'fallback' => \App\Support\Design\Branding::fallbackReason($this->brand_color),
+            'logoPreview' => $this->logo?->isPreviewable() ? $this->logo->temporaryUrl() : $organization->logo_url,
         ]);
     }
 

@@ -50,6 +50,21 @@ final class Branding
         );
     }
 
+    /**
+     * Why an organization's colour isn't used, for the settings preview; null when it is (or none is set).
+     */
+    public static function fallbackReason(?string $color): ?string
+    {
+        if (!Contrast::isHex($color)) {
+            return null;
+        }
+
+        return self::fromColor(strtolower((string) $color))->custom
+        || strtolower((string) $color) === self::VOTELAB_BRAND
+            ? null
+            : 'Neither white nor dark text is readable on this colour, so VoteLab\'s teal is used instead. Try a darker or lighter shade.';
+    }
+
     public static function votelab(): BrandPalette
     {
         return new BrandPalette(self::VOTELAB_BRAND, '#0b574c', self::WHITE, self::VOTELAB_BRAND, '#e7f2ef', false);

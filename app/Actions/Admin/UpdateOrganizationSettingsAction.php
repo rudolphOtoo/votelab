@@ -9,6 +9,8 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Rules\OrganizationSlug;
 use App\Support\Audit;
+use App\Support\OrganizationSettingsChanges;
+use App\Support\OrganizationSettingsWriter;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
@@ -17,8 +19,10 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Updates an organization's settings. Each field needs its own ability: name and logo
- * (organization.updateProfile), slug (updateSlug), Paystack subaccount (updatePayoutSettings). Slug and
+ * Updates an organization's settings. Each field needs its own ability: name, logo (URL or upload) and brand
+ * colour (organization.updateProfile), slug (updateSlug), Paystack subaccount (updatePayoutSettings).
+ * An uploaded logo is re-encoded (OrganizationLogo) and replaces any earlier upload; the brand colour lives in
+ * settings.brand_color as #rrggbb (D-115, D-131). A new name, logo or colour clears every cached share image. Slug and
  * payout changes also need a password confirmed in this session ($passwordConfirmed, from the caller), and
  * on success every owner is emailed (queued) with who changed what and when. Every change is audited with
  * before/after values. Only fields present in $input are touched.
@@ -30,6 +34,8 @@ final readonly class UpdateOrganizationSettingsAction
         'logo_url' => 'updateProfile',
         'slug' => 'updateSlug',
         'paystack_subaccount_code' => 'updatePayoutSettings',
+        'brand_color' => 'updateProfile',
+        'logo' => 'updateProfile',
     ];
 
     private const array SENSITIVE = ['slug', 'paystack_subaccount_code'];
@@ -49,23 +55,25 @@ final readonly class UpdateOrganizationSettingsAction
         $organization = Organization::query()->findOrFail($organization->id);
         $input = array_intersect_key($input, self::ABILITY_FOR);
 
-        $data = Validator::make($input, [
-            'name' => ['sometimes', 'required', 'string', 'max:120'],
-            'logo_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
-            'slug' => [
-                'sometimes',
-                'required',
-                new OrganizationSlug(),
-                Rule::unique('organizations', 'slug')->ignore($organization->id),
+        $data = Validator::make(
+            $input,
+            [
+                'name' => ['sometimes', 'required', 'string', 'max:120'],
+                'logo_url' => ['sometimes', 'nullable', 'url', 'max:2048'],
+                'slug' => [
+                    'sometimes',
+                    'required',
+                    new OrganizationSlug(),
+                    Rule::unique('organizations', 'slug')->ignore($organization->id),
+                ],
+                'paystack_subaccount_code' => ['sometimes', 'nullable', 'regex:/^ACCT_[A-Za-z0-9]+$/'],
+                'brand_color' => ['sometimes', 'nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
+                'logo' => ['sometimes', 'nullable', 'file'],
             ],
-            'paystack_subaccount_code' => ['sometimes', 'nullable', 'regex:/^ACCT_[A-Za-z0-9]+$/'],
-        ])->validate();
+            ['brand_color.regex' => 'Use a colour like #0E6B5E: a # and six letters or digits.'],
+        )->validate();
 
-        $changed = array_filter(
-            $data,
-            static fn(mixed $value, string $field): bool => $organization->getAttribute($field) !== $value,
-            ARRAY_FILTER_USE_BOTH,
-        );
+        $changed = OrganizationSettingsChanges::of($organization, $data);
 
         foreach (array_keys($changed) as $field) {
             Gate::forUser($actor)->authorize(self::ABILITY_FOR[$field], $organization);
@@ -83,8 +91,7 @@ final readonly class UpdateOrganizationSettingsAction
             return $organization;
         }
 
-        $before = array_intersect_key($organization->only(array_keys($changed)), $changed);
-        $organization->forceFill($changed)->save();
+        [$before, $changed] = OrganizationSettingsWriter::apply($organization, $changed);
 
         Audit::record('organization.settings_changed', $actor, $organization, [
             'before' => $before,
