@@ -97,7 +97,7 @@ final class NomineeManager extends Component
         $category = $this->category();
         $nominees = $category->nominees()->get();
         $editing = $this->editingId ? $nominees->firstWhere('id', $this->editingId) : null;
-        $shareable = !in_array($category->status, [CategoryStatus::Draft], true) && $program->status->isPublic();
+        $shareable = $category->status !== CategoryStatus::Draft && $program->status->isPublic();
 
         return view('livewire.admin.nominee-manager', [
             'program' => $program,

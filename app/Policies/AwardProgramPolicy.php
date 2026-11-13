@@ -54,7 +54,7 @@ final class AwardProgramPolicy
         return (
             $program->status === ProgramStatus::Published
             && $this->granted($user, $program->organization_id, ProgramAbility::ProgramPublish)
-            && !$program->categories()->whereIn('status', [CategoryStatus::Open, CategoryStatus::Embargoed])->exists()
+            && !$program->categories()->whereIn('status', CategoryStatus::votingAllowed())->exists()
         );
     }
 

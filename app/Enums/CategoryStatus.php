@@ -47,7 +47,17 @@ enum CategoryStatus: string
      */
     public function isVotingAllowed(): bool
     {
-        return in_array($this, [self::Open, self::Embargoed], true);
+        return in_array($this, self::votingAllowed(), true);
+    }
+
+    /**
+     * Statuses in which a category takes votes (open, with results shown or hidden).
+     *
+     * @return list<self>
+     */
+    public static function votingAllowed(): array
+    {
+        return [self::Open, self::Embargoed];
     }
 
     public function isLeaderboardPublic(): bool
