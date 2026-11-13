@@ -189,10 +189,58 @@ recorded refunds, which never change them.
 
 ## Operations
 
+### Deploying
+
+**Server:**
+- PHP 8.4 or 8.5 with `pdo_pgsql`, `gd` (WebP and FreeType), `intl`, `bcmath` and `mbstring`.
+- PostgreSQL 17 (see [Database](#database-postgresql-17)) and Redis (see [Cache, locks and logs](#cache-locks-and-logs)).
+- Supervisor for the [queue workers](#queue-workers-required) and cron for the [scheduler](#scheduler-required).
+- Node 22, only to build assets: on the server, or in CI before copying `public/build` over.
+
+**First deploy**, once:
+
+```bash
+cp .env.example .env              # then set production values: the checklist below names each one
+php artisan key:generate --force  # once; changing APP_KEY later logs everyone out and breaks encrypted values
+php artisan storage:link          # nominee photos and logos are served from storage/app/public
+php artisan migrate --force
+php artisan organizations:create "Accra Campus Creatives" accra-campus-creatives --owner=owner@example.com --force
+```
+
+**Never run `db:seed` or `migrate --seed` in production.** The default seeder creates the demo program and two
+demo users whose password is `password`.
+
+**Every deploy:**
+
+```bash
+composer install --no-dev --optimize-autoloader --no-interaction
+npm ci && npm run build           # or copy public/build from CI
+php artisan migrate --force
+php artisan optimize              # caches config, routes, views and events
+php artisan queue:restart         # workers finish their current job, then reload the new code
+```
+
+- **Release tag:** set `SENTRY_RELEASE` (for example to the commit hash, `git rev-parse --short HEAD`) before
+  `php artisan optimize`, so Sentry tells releases apart.
+- **After caching, `.env` is no longer read:** after changing it, run `php artisan optimize` again.
+- **Afterwards:** check `/health` with the `X-Health-Token` header. If a deploy changes the Sentry setup, also
+  run `php artisan ops:sentry-check` from staging.
+
+**During voting:**
+- Prefer deploys that need no maintenance mode: additive migrations, and new indexes built
+  `CONCURRENTLY` (see [Database](#database-postgresql-17)).
+- `php artisan down` answers Paystack's webhooks with 503. Paystack retries them, and the sweeper credits any
+  payment still pending after 10 minutes, so no paid vote is lost. Voters can't vote while the site is down,
+  though.
+- **Rollback:** go back to the previous release's code and run `php artisan optimize` again. Migrations only
+  move forward in production; a migration that has to be undone gets a new migration, written and tested
+  like any other.
+
 ### Paystack
 
 - **Webhook URL:** set the Paystack dashboard webhook to `https://<host>/api/webhooks/paystack`.
-  PayZephyr's built-in `/payments/webhook/{provider}` route is deliberately disabled (it returns 404).
+  PayZephyr's built-in `/payments/webhook/{provider}` route is deliberately disabled (it returns 404), and so
+  is its `/payments/health`: it would call Paystack on every request and list the providers. Use `/health`.
 - **Settlement:** paid votes settle 100% to the organization's Paystack subaccount
   (`organizations.paystack_subaccount_code`). The subaccount bears Paystack's fee, which the voter pays on
   top of the vote price. Organizations without a subaccount cannot take paid votes.
