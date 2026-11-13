@@ -219,3 +219,29 @@ it('states when voting opens or closes, in Accra time', function (): void {
         )
         ->toBe('Voting closed');
 });
+
+it('never sends the payment reference on: no referrer, and the share links to the nominee page only', function (): void {
+    fakeGateway();
+    $nominee = redesignCategory(CategoryStatus::Open)->nominees()->firstOrFail();
+    VoteTransaction::factory()->for($nominee)->create([
+        'payment_reference' => 'VL_PRIVATE_REF9',
+        'status' => TransactionStatus::Successful,
+        'quantity' => 5,
+        'credited_at' => now(),
+        'verified_at' => now(),
+    ]);
+
+    $response = $this->get('/payments/callback?reference=VL_PRIVATE_REF9')->assertOk()->assertHeader(
+        'Referrer-Policy',
+        'no-referrer',
+    );
+
+    preg_match('#href="https://wa\.me/\?text=([^"]+)"#', (string) $response->getContent(), $match);
+    $shared = rawurldecode(html_entity_decode($match[1] ?? ''));
+
+    expect($shared)
+        ->toContain(url('/campus/awards/NM10'))
+        ->not->toContain('VL_PRIVATE_REF9')
+        ->not->toContain('reference')
+        ->not->toContain('payments/callback');
+});

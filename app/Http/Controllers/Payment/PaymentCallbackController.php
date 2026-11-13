@@ -9,8 +9,8 @@ use App\Enums\PaymentTrigger;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\VoteTransaction;
 use Illuminate\Contracts\Cache\LockTimeoutException;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 /**
  * Where Paystack sends the voter after checkout. Verifies and credits through the same action as
@@ -18,7 +18,7 @@ use Illuminate\Http\Request;
  */
 final class PaymentCallbackController
 {
-    public function __invoke(Request $request, FulfillPaidVoteOrderAction $fulfil): View
+    public function __invoke(Request $request, FulfillPaidVoteOrderAction $fulfil): Response
     {
         $reference = $request->query('reference', $request->query('trxref'));
 
@@ -35,6 +35,10 @@ final class PaymentCallbackController
 
         $transaction->loadMissing(['nominee', 'awardCategory', 'awardProgram.organization']);
 
-        return view('payments.result', ['transaction' => $transaction]);
+        // The URL carries the payment reference: never pass it on to WhatsApp, Paystack or any page the voter
+        // opens from here.
+        return response()
+            ->view('payments.result', ['transaction' => $transaction])
+            ->header('Referrer-Policy', 'no-referrer');
     }
 }
