@@ -86,6 +86,78 @@ jobs:
       - name: Migrations and seeders run clean
         run: php artisan migrate:fresh --seed --force
 
+  # The full suite on PostgreSQL 17, the production engine (D-137), including the two-connection race tests in
+  # tests/Concurrency, which only run here. Required, like `quality` (which stays on SQLite for speed).
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: votelab
+          POSTGRES_PASSWORD: votelab
+          POSTGRES_DB: votelab_test
+          POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=en_US.UTF-8
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U votelab -d votelab_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: votelab_test
+      DB_USERNAME: votelab
+      DB_PASSWORD: votelab
+      DB_URL: ''
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_pgsql, pdo_sqlite, intl, bcmath, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Server version
+        run: psql "postgresql://votelab:votelab@127.0.0.1:5432/votelab_test" -Atc 'show server_version'
+
+      # One database per process (votelab_test_test_N); the service user may create them.
+      - name: Tests on PostgreSQL (full suite)
+        run: php artisan test --parallel
+
+      # Fails if the race tests were skipped, e.g. because this job stopped reaching PostgreSQL.
+      - name: Race tests ran on PostgreSQL
+        run: ./vendor/bin/pest tests/Concurrency --fail-on-skipped
+
+      - name: Migrations and seeders run clean, roll back and run again
+        run: |
+          php artisan migrate:fresh --seed --force
+          php artisan migrate:reset --force
+          php artisan migrate --force
+
   # Real-browser tests (pestphp/pest-plugin-browser + Playwright Chromium) against the production build (D-113).
   # Required: the small critical set (vote flow at 360 px, hidden-results checks, sign-in, axe on public pages).
   browser-critical:
