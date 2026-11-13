@@ -281,6 +281,11 @@ Stage 3 (hardening) completes this list; the items below are already required.
   are never stored, only an HMAC of them for exact search; **rotating the key breaks phone search on every
   existing transaction** (old hashes stop matching). Production refuses to boot without it; it never falls back
   to `APP_KEY`.
+- [ ] **`VOTING_FINGERPRINT_KEY` set** (a random 32-byte value) before launch, and kept. It keys the voter
+  fingerprints behind free-vote limits and the hashed IPs on vote records; **rotating it resets every voter's
+  daily free votes**. Production refuses to boot without it; it never falls back to `APP_KEY` (D-126).
+- [ ] **Portrait copies backfilled** once after deploying D-127: `php artisan nominees:photo-variants --dry-run`,
+  then without `--dry-run` (queued; needs the worker). Safe to run again.
 - [ ] **`NOMINEE_PHOTO_ORIGINAL_DISK` is private** (default `local`): uploaded originals are kept there for
   re-cropping and must never be web-readable.
 - [ ] **Paystack live keys in production** (`sk_live_…`); the launch checklist refuses to publish a paid
@@ -289,7 +294,7 @@ Stage 3 (hardening) completes this list; the items below are already required.
   S3 bucket): nominee photos are served from it.
 - [ ] **The boot guard passes.** In production the app refuses to start (web and CLI) unless: the cache store
   holds atomic locks shared by all servers (not `array` or `file`), `APP_DEBUG=false`, `PAYSTACK_SECRET_KEY`
-  is a live key, `VOTING_PHONE_HASH_KEY` is set, and `PAYMENTS_LOGGING_ENABLED` is not `true` (D-122). The
+  is a live key, `VOTING_PHONE_HASH_KEY` and `VOTING_FINGERPRINT_KEY` are set, and `PAYMENTS_LOGGING_ENABLED` is not `true` (D-122). The
   error lists every problem.
 - [ ] **Sentry DSN set** (`SENTRY_LARAVEL_DSN`) and alert rules created for `queue.job_failed`,
   `fulfilment.gave_up`, `tally.drift` and `tally.drift_nightly`.
