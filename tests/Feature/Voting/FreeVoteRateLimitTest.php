@@ -149,3 +149,45 @@ it('keeps free and paid votes distinguishable in the ledger', function (): void 
         ->and((int) VoteRecord::query()->where('is_paid', true)->sum('quantity'))
         ->toBe(10);
 });
+
+/**
+ * Makes the next $times claim inserts meet a competing claim for the same slot, as if a concurrent request by the
+ * same voter got there first. The competitor is inserted inside the action's transaction, so the database raises
+ * a real unique violation and the rollback removes the competitor too. tests/Concurrency proves the real race.
+ */
+function competingClaims(Nominee $nominee, int $times): void
+{
+    FreeVoteClaim::creating(static function (FreeVoteClaim $claim) use ($nominee, &$times): void {
+        if ($times-- <= 0 || $claim->vote_record_id === null) {
+            return;
+        }
+
+        $competitor = $claim->replicate();
+        $competitor->vote_record_id = VoteRecord::factory()->for($nominee)->create()->id;
+        $competitor->saveQuietly();
+    });
+}
+
+it('retries once with a fresh count when a concurrent request takes the same slot, then counts the vote', function (): void {
+    $nominee = freeNominee(limit: 2);
+    competingClaims($nominee, times: 1);
+
+    $record = castFree($nominee, voter());
+
+    expect($record->exists)
+        ->toBeTrue()
+        ->and(FreeVoteClaim::query()->where('vote_record_id', $record->id)->value('slot'))
+        ->toBe(1)
+        ->and(VoteRecord::query()->count())
+        ->toBe(1)
+        ->and($nominee->fresh()?->votes_count)
+        ->toBe(1);
+});
+
+it('refuses after a second slot conflict instead of retrying for ever', function (): void {
+    $nominee = freeNominee(limit: 2);
+    competingClaims($nominee, times: 2);
+
+    expect(fn() => castFree($nominee, voter()))->toThrow(FreeVoteUnavailableException::class);
+    expect(VoteRecord::query()->count())->toBe(0)->and($nominee->fresh()?->votes_count)->toBe(0);
+});

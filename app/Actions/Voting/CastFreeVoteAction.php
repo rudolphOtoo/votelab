@@ -52,40 +52,18 @@ final readonly class CastFreeVoteAction
         $limit = $category->free_vote_limit;
         $period = self::today();
 
-        try {
-            $record = DB::transaction(static function () use ($nominee, $voter, $limit, $period): ?VoteRecord {
-                $used = self::claims($nominee->award_category_id, $voter, $period);
+        // A slot conflict means a concurrent request by the same voter took that slot first. Try once more in a
+        // new transaction, which sees that claim: the next slot if one is left, otherwise refused (D-140).
+        $record = null;
 
-                if ($used >= $limit) {
-                    return null;
-                }
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                $record = self::claim($nominee, $voter, $limit, $period);
 
-                $record = VoteRecord::query()->create([
-                    'organization_id' => $nominee->organization_id,
-                    'award_program_id' => $nominee->award_program_id,
-                    'award_category_id' => $nominee->award_category_id,
-                    'nominee_id' => $nominee->id,
-                    'is_paid' => false,
-                    'quantity' => 1,
-                    'voter_fingerprint' => $voter->voterKey,
-                    'ip_hash' => $voter->ipHash,
-                    'cast_at' => now(),
-                ]);
-
-                FreeVoteClaim::query()->create([
-                    'award_category_id' => $nominee->award_category_id,
-                    'vote_record_id' => $record->id,
-                    'voter_key' => $voter->voterKey,
-                    'period' => $period,
-                    'slot' => $used + 1,
-                ]);
-
-                Nominee::query()->whereKey($nominee->id)->increment('votes_count');
-
-                return $record;
-            });
-        } catch (UniqueConstraintViolationException) {
-            $record = null; // A concurrent request took the same slot.
+                break;
+            } catch (UniqueConstraintViolationException) {
+                Log::channel('voting')->info('free_vote.slot_conflict', $context + ['attempt' => $attempt]);
+            }
         }
 
         if ($record === null) {
@@ -110,6 +88,46 @@ final readonly class CastFreeVoteAction
     public static function remainingToday(AwardCategory $category, VoterIdentity $voter): int
     {
         return max(0, $category->free_vote_limit - self::claims($category->id, $voter, self::today()));
+    }
+
+    /**
+     * Claims the voter's next slot and records the vote, in one transaction; null when every slot is taken.
+     *
+     * @throws UniqueConstraintViolationException when a concurrent request claimed the same slot first
+     */
+    private static function claim(Nominee $nominee, VoterIdentity $voter, int $limit, string $period): ?VoteRecord
+    {
+        return DB::transaction(static function () use ($nominee, $voter, $limit, $period): ?VoteRecord {
+            $used = self::claims($nominee->award_category_id, $voter, $period);
+
+            if ($used >= $limit) {
+                return null;
+            }
+
+            $record = VoteRecord::query()->create([
+                'organization_id' => $nominee->organization_id,
+                'award_program_id' => $nominee->award_program_id,
+                'award_category_id' => $nominee->award_category_id,
+                'nominee_id' => $nominee->id,
+                'is_paid' => false,
+                'quantity' => 1,
+                'voter_fingerprint' => $voter->voterKey,
+                'ip_hash' => $voter->ipHash,
+                'cast_at' => now(),
+            ]);
+
+            FreeVoteClaim::query()->create([
+                'award_category_id' => $nominee->award_category_id,
+                'vote_record_id' => $record->id,
+                'voter_key' => $voter->voterKey,
+                'period' => $period,
+                'slot' => $used + 1,
+            ]);
+
+            Nominee::query()->whereKey($nominee->id)->increment('votes_count');
+
+            return $record;
+        });
     }
 
     private static function today(): string
