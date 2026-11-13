@@ -108,9 +108,10 @@ final class ProgramLanding extends Component
         return $this
             ->searchable()
             ->where(static function (Builder $query) use ($like, $term): void {
+                // Case-insensitive on every engine: ILIKE on PostgreSQL, LIKE (already case-insensitive) on SQLite.
                 $query
-                    ->where('name', 'like', $like)
-                    ->orWhere('stage_name', 'like', $like)
+                    ->whereLike('name', $like, caseSensitive: false)
+                    ->orWhereLike('stage_name', $like, caseSensitive: false)
                     ->orWhere('nominee_code', 'like', addcslashes(NomineeCode::normalize($term), '%_\\') . '%');
             })
             ->with('awardCategory:id,name,slug')

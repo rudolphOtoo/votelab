@@ -64,6 +64,22 @@ it('lists matching nominees by name, never by votes', function (): void {
         ->assertSee('No nominee matches');
 });
 
+it('matches names and stage names whatever the case, on every database engine', function (): void {
+    $program = searchProgram();
+    Nominee::query()->where('name', 'Kofi Boateng')->update(['stage_name' => 'KB Flow']);
+
+    landing($program)
+        ->set('q', 'zara owusu')
+        ->assertSee('Zara Owusu')
+        ->set('q', 'ABENA')
+        ->assertSee('Abena Mensah')
+        ->assertDontSee('Zara Owusu')
+        ->set('q', 'kb flow') // shown by stage name
+        ->assertSee('KB Flow')
+        ->set('q', 'mEnSaH')
+        ->assertSee('Abena Mensah');
+});
+
 it('never finds withdrawn nominees, draft categories or other programs', function (): void {
     $program = searchProgram();
     Nominee::query()->where('nominee_code', 'KB30')->update(['archived_at' => now()]);
