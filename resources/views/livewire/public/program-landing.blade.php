@@ -49,7 +49,7 @@
                             @foreach ($matches as $match)
                                 <li>
                                     <a href="{{ route('public.nominee', [$organization, $program, $match->nominee_code]) }}" class="-mx-2 flex min-h-14 items-center gap-3 rounded-[var(--radius-md)] px-2 py-2 hover:bg-hover">
-                                        <x-ui.avatar :name="$match->displayName()" :src="$match->avatar_url" />
+                                        <x-ui.avatar :name="$match->displayName()" :src="\App\Support\NomineePortrait::smallest($match)" />
                                         <span class="min-w-0 flex-1">
                                             <span class="block font-medium text-ink">{{ $match->displayName() }}</span>
                                             <span class="block text-sm text-ink-secondary">{{ $match->awardCategory->name }}</span>

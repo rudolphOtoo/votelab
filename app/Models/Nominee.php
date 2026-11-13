@@ -106,6 +106,7 @@ final class Nominee extends Model
             'votes_count' => 'integer',
             'archived_at' => 'datetime',
             'photo_crop' => 'array',
+            'avatar_variants' => 'array',
         ];
     }
 }

@@ -164,3 +164,35 @@ it('returns focus to the Vote button when the drawer closes', function (): void 
             'vote-' . Nominee::query()->where('nominee_code', 'AR11')->value('id'),
         );
 })->group('advisory');
+
+it('serves each layout the smallest portrait that stays sharp', function (): void {
+    Illuminate\Support\Facades\Storage::fake('public');
+    Illuminate\Support\Facades\Storage::fake('local');
+    $category = AwardCategory::factory()->status(CategoryStatus::Open)->create(['slug' => 'artiste']);
+    $owner = organizer(App\Enums\OrganizationRole::Owner, $category->organization);
+    $nominee = app(App\Actions\Admin\CreateNomineeAction::class)->execute($category, $owner, [
+        'name' => 'Ama Mensah',
+        'photo' => Illuminate\Http\UploadedFile::fake()->image('ama.jpg', 1000, 1250),
+    ]);
+    $program = $category->awardProgram;
+    $cards = route('public.category', [$program->organization, $program, $category], absolute: false);
+    $drawer = route('public.nominee', [$program->organization, $program, $nominee->nominee_code], absolute: false);
+    $card = '() => document.querySelector("main ul img[srcset]").currentSrc';
+
+    // Viewport first, then the page: browsers keep an already-chosen larger image after a resize. The test
+    // browser renders at 2 device pixels per CSS pixel, like most phones.
+    $phone = visit('/up')->resize(360, 800)->navigate($cards)->wait(0.5);
+    expect($phone->script('() => window.devicePixelRatio'))->toBe(2);
+
+    // A 156 px card needs 312 device pixels: the 400 px copy, never the 800 px portrait.
+    expect($phone->script($card))->toEndWith('-400w.webp');
+
+    // The 56 px drawer thumbnail needs 112: the 240 px copy.
+    $thumb = visit('/up')->resize(360, 800)->navigate($drawer)->wait(0.5);
+    expect($thumb->script('() => document.querySelector("[role=dialog] img[srcset]").currentSrc'))
+        ->toEndWith('-240w.webp');
+
+    // A 224 px desktop card needs 448: the full portrait.
+    $desktop = visit('/up')->resize(1440, 900)->navigate($cards)->wait(0.5);
+    expect($desktop->script($card))->not->toContain('-400w')->not->toContain('-240w');
+})->group('critical');

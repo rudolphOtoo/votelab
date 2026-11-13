@@ -52,6 +52,8 @@ return [
         'max_kilobytes' => 5_120,
         'width' => 800,
         'height' => 1_000,
+        // Smaller copies for srcset (D-127), same 4:5 crop: cards on phones use 240 or 400.
+        'variant_widths' => [400, 240],
     ],
 
     /*

@@ -116,7 +116,7 @@ final class ProgramLanding extends Component
             ->with('awardCategory:id,name,slug')
             ->orderBy('name')
             ->limit(self::MAX_MATCHES)
-            ->get(['id', 'award_category_id', 'name', 'stage_name', 'nominee_code', 'avatar_url']);
+            ->get(['id', 'award_category_id', 'name', 'stage_name', 'nominee_code', 'avatar_url', 'avatar_variants']);
     }
 
     /**

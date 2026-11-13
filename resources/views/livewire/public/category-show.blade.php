@@ -68,7 +68,7 @@
                         'border-hairline' => !$isWinner,
                     ])>
                         <div class="relative">
-                            <x-ui.nominee-photo :src="$nominee->avatar_url" :name="$nominee->displayName()" alt="" :eager="$loop->first" class="rounded-none" />
+                            <x-ui.nominee-photo :src="$nominee->avatar_url" :srcset="\App\Support\NomineePortrait::srcset($nominee)" :name="$nominee->displayName()" alt="" :eager="$loop->first" class="rounded-none" />
                             @if ($isWinner)
                                 <span class="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-primary-fg shadow-raised"><x-ui.icon name="success" class="size-3.5" /> Winner</span>
                             @endif

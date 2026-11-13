@@ -26,7 +26,7 @@ final class NomineePhoto
 
     /**
      * @param  array<string, mixed>|null  $crop
-     * @return array{avatar_url: string, photo_original_path: string, photo_crop: array{x: float, y: float, width: float}}
+     * @return array{avatar_url: string, avatar_variants: array<int, string>, photo_original_path: string, photo_crop: array{x: float, y: float, width: float}}
      *
      * @throws ValidationException
      */
@@ -59,34 +59,87 @@ final class NomineePhoto
     }
 
     /**
-     * (Re-)encode the public portrait from the stored original with a crop.
+     * (Re-)encode the public portrait, and its smaller srcset variants, from the stored original with a crop.
+     * File names carry a hash of the crop, so a re-crop writes new files and replaces every URL at once
+     * (D-127): a stale variant can never be served next to a new portrait.
      *
      * @param  array<string, mixed>|null  $crop
-     * @return array{avatar_url: string, photo_original_path: string, photo_crop: array{x: float, y: float, width: float}}
+     * @return array{avatar_url: string, avatar_variants: array<int, string>, photo_original_path: string, photo_crop: array{x: float, y: float, width: float}}
      *
      * @throws ValidationException
      */
     public static function render(string $originalPath, ?array $crop): array
     {
         $config = self::config();
-        $source = self::decode((string) Storage::disk((string) $config['original_disk'])->get($originalPath));
-        $normalized = NomineePhotoCrop::normalize($crop, imagesx($source), imagesy($source));
-        $webp = self::encodeWebp($source, $normalized, (int) $config['width'], (int) $config['height']);
-
+        [$source, $normalized, $base] = self::prepare($originalPath, $crop);
         $public = Storage::disk((string) $config['disk']);
-        $derived =
-            'nominees/'
-            . pathinfo($originalPath, PATHINFO_FILENAME)
-            . '-'
-            . substr(sha1((string) json_encode($normalized)), 0, 12)
-            . '.webp';
-        $public->put($derived, $webp, 'public');
+        $public->put(
+            "{$base}.webp",
+            self::encodeWebp($source, $normalized, (int) $config['width'], (int) $config['height']),
+            'public',
+        );
 
         return [
-            'avatar_url' => $public->url($derived),
+            'avatar_url' => $public->url("{$base}.webp"),
+            'avatar_variants' => self::writeVariants($source, $normalized, $base),
             'photo_original_path' => $originalPath,
             'photo_crop' => $normalized,
         ];
+    }
+
+    /**
+     * Only the smaller variants, for portraits made before they existed (nominees:photo-variants). Same
+     * original, same crop, same file names as render() would give.
+     *
+     * @param  array<string, mixed>|null  $crop
+     * @return array<int, string>  width => public URL
+     *
+     * @throws ValidationException
+     */
+    public static function variants(string $originalPath, ?array $crop): array
+    {
+        [$source, $normalized, $base] = self::prepare($originalPath, $crop);
+
+        return self::writeVariants($source, $normalized, $base);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $crop
+     * @return array{0: GdImage, 1: array{x: float, y: float, width: float}, 2: string}
+     *
+     * @throws ValidationException
+     */
+    private static function prepare(string $originalPath, ?array $crop): array
+    {
+        $config = self::config();
+        $source = self::decode((string) Storage::disk((string) $config['original_disk'])->get($originalPath));
+        $normalized = NomineePhotoCrop::normalize($crop, imagesx($source), imagesy($source));
+        $base =
+            'nominees/'
+            . pathinfo($originalPath, PATHINFO_FILENAME)
+            . '-'
+            . substr(sha1((string) json_encode($normalized)), 0, 12);
+
+        return [$source, $normalized, $base];
+    }
+
+    /**
+     * @param  array{x: float, y: float, width: float}  $crop
+     * @return array<int, string>  width => public URL
+     */
+    private static function writeVariants(GdImage $source, array $crop, string $base): array
+    {
+        $public = Storage::disk((string) self::config()['disk']);
+        $urls = [];
+
+        foreach ((array) self::config()['variant_widths'] as $width) {
+            $width = (int) $width;
+            $path = "{$base}-{$width}w.webp";
+            $public->put($path, self::encodeWebp($source, $crop, $width, (int) round(($width * 5) / 4)), 'public');
+            $urls[$width] = $public->url($path);
+        }
+
+        return $urls;
     }
 
     /**

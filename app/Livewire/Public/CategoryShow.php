@@ -95,6 +95,7 @@ final class CategoryShow extends Component
                 'stage_name',
                 'nominee_code',
                 'avatar_url',
+                'avatar_variants',
                 'bio',
                 'display_order',
             ])

@@ -25,7 +25,7 @@
 
         <header class="flex items-start gap-3 border-b border-hairline px-5 pb-4 pt-3 sm:pt-5">
             <div class="w-14 shrink-0">
-                <x-ui.nominee-photo :src="$nominee->avatar_url" :name="$nominee->displayName()" alt="" :width="56" :eager="true" />
+                <x-ui.nominee-photo :src="$nominee->avatar_url" :srcset="\App\Support\NomineePortrait::srcset($nominee)" sizes="56px" :name="$nominee->displayName()" alt="" :width="56" :eager="true" />
             </div>
             <div class="min-w-0 flex-1">
                 <p class="text-sm text-ink-secondary">{{ $category->name }}</p>
