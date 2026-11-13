@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\Voting\OrderTotalTooLargeException;
 use App\Services\Payment\PaystackFeeCalculator;
 
 it('prices 25 votes at GHS 1.00: GHS 25.00 subtotal + GHS 0.50 fee = GHS 25.50', function (): void {
@@ -22,7 +23,7 @@ it('prices 25 votes at GHS 1.00: GHS 25.00 subtotal + GHS 0.50 fee = GHS 25.50',
 it('charges exactly ceil(subtotal / (1 - rate)), to the pesewa', function (): void {
     $calculator = new PaystackFeeCalculator(feeBps: 195);
 
-    foreach ([1, 7, 49, 50, 99, 100, 101, 333, 1_000, 2_500, 9_999, 123_456, 1_000_000, 4_000_000_000] as $subtotal) {
+    foreach ([1, 7, 49, 50, 99, 100, 101, 333, 1_000, 2_500, 9_999, 123_456, 1_000_000, 2_100_000_000] as $subtotal) {
         $quote = $calculator->quote(quantity: 1, unitPrice: $subtotal);
 
         // total x (1 - rate) >= subtotal, and one pesewa less would not be.
@@ -78,3 +79,14 @@ it('rejects totals that do not fit the transaction amount columns', function ():
 it('rejects impossible rates', function (int $bps): void {
     new PaystackFeeCalculator(feeBps: $bps);
 })->with([-1, 10_000])->throws(InvalidArgumentException::class);
+
+it('allows a total of exactly MAX_AMOUNT and refuses one pesewa more (D-139)', function (): void {
+    $max = PaystackFeeCalculator::MAX_AMOUNT;
+
+    expect(new PaystackFeeCalculator(feeBps: 0)->quote(quantity: 1, unitPrice: $max)->total)
+        ->toBe(2_147_483_647)
+        ->and(fn() => new PaystackFeeCalculator(feeBps: 0)->quote(quantity: 1, unitPrice: $max + 1))
+        ->toThrow(OrderTotalTooLargeException::class)
+        ->and(fn() => new PaystackFeeCalculator(feeBps: 195)->quote(quantity: 1, unitPrice: $max))
+        ->toThrow(OrderTotalTooLargeException::class);
+});

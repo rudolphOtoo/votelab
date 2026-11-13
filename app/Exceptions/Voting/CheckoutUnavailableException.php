@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Exceptions\Voting;
 
+use App\Support\Money;
 use RuntimeException;
 use Throwable;
 
@@ -40,6 +41,18 @@ final class CheckoutUnavailableException extends RuntimeException
     public static function invalidQuantity(int $max): self
     {
         return new self("Choose between 1 and {$max} votes.");
+    }
+
+    /**
+     * The total would exceed the largest amount one payment may be (PaystackFeeCalculator::MAX_AMOUNT, D-139).
+     */
+    public static function amountTooLarge(int $maxAmount): self
+    {
+        return new self(
+            'This order is too large for one payment. The most one payment can be is '
+            . Money::format($maxAmount)
+            . '. Choose fewer votes.',
+        );
     }
 
     public static function invalidEmail(): self

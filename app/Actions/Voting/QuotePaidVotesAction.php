@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Voting;
 
 use App\Exceptions\Voting\CheckoutUnavailableException;
+use App\Exceptions\Voting\OrderTotalTooLargeException;
 use App\Models\Nominee;
 use App\Services\Payment\Data\VotePriceQuote;
 use App\Services\Payment\PaystackFeeCalculator;
@@ -50,6 +51,10 @@ final readonly class QuotePaidVotesAction
             throw CheckoutUnavailableException::invalidQuantity($maxQuantity);
         }
 
-        return $this->fees->quote($quantity, $category->price_per_vote);
+        try {
+            return $this->fees->quote($quantity, $category->price_per_vote);
+        } catch (OrderTotalTooLargeException) {
+            throw CheckoutUnavailableException::amountTooLarge(PaystackFeeCalculator::MAX_AMOUNT);
+        }
     }
 }

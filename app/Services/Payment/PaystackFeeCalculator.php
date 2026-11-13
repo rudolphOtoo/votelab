@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Payment;
 
+use App\Exceptions\Voting\OrderTotalTooLargeException;
 use App\Services\Payment\Data\VotePriceQuote;
 use InvalidArgumentException;
 
@@ -19,8 +20,11 @@ use InvalidArgumentException;
  */
 final readonly class PaystackFeeCalculator
 {
-    /** Largest amount the unsigned 32-bit transaction amount columns can hold. */
-    public const int MAX_AMOUNT = 4_294_967_295;
+    /**
+     * Largest amount, in pesewas, of any order (GHS 21,474,836.47): what the transaction amount columns hold
+     * on every engine (a signed 32-bit integer on PostgreSQL), D-139.
+     */
+    public const int MAX_AMOUNT = 2_147_483_647;
 
     private const int BPS_PER_UNIT = 10_000;
 
@@ -37,6 +41,9 @@ final readonly class PaystackFeeCalculator
         return new self(feeBps: (int) config('voting.paystack_fee_bps'));
     }
 
+    /**
+     * @throws OrderTotalTooLargeException when the total would exceed MAX_AMOUNT
+     */
     public function quote(int $quantity, int $unitPrice): VotePriceQuote
     {
         if ($quantity < 1 || $unitPrice < 1) {
@@ -44,7 +51,7 @@ final readonly class PaystackFeeCalculator
         }
 
         if ($quantity > intdiv(self::MAX_AMOUNT, $unitPrice)) {
-            throw new InvalidArgumentException('Order total is too large.');
+            throw OrderTotalTooLargeException::make();
         }
 
         $subtotal = $quantity * $unitPrice;
@@ -52,7 +59,7 @@ final readonly class PaystackFeeCalculator
         $total = intdiv(($subtotal * self::BPS_PER_UNIT) + $divisor - 1, $divisor);
 
         if ($total > self::MAX_AMOUNT) {
-            throw new InvalidArgumentException('Order total is too large.');
+            throw OrderTotalTooLargeException::make();
         }
 
         return new VotePriceQuote(
