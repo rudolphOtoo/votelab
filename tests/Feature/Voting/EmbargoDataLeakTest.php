@@ -161,3 +161,43 @@ it('draws bar widths when results are public, so the absence check above is mean
 
     expect($this->get('/org/awards/categories/cat')->getContent())->toContain('scaleX');
 });
+
+it('never consults the leaderboard while results are hidden: the page itself checks, not only the cache', function (CategoryStatus $status): void {
+    $category = categoryWithCounts($status);
+
+    // LeaderboardCache::standings() starts with the status gate, a "select status" by id. The page must not even
+    // get that far (its own check is the second layer), on the first render or on a poll.
+    $gateReads = [];
+    Illuminate\Support\Facades\DB::listen(static function ($query) use (&$gateReads): void {
+        if (str_starts_with($query->sql, 'select "status" from "award_categories"')) {
+            $gateReads[] = $query->sql;
+        }
+    });
+
+    Livewire::test(CategoryShow::class, [
+        'organization' => $category->awardProgram->organization,
+        'awardProgram' => $category->awardProgram,
+        'category' => $category,
+    ])->call('refreshStandings');
+
+    expect($gateReads)->toBeEmpty();
+})->with([
+    'embargoed' => CategoryStatus::Embargoed,
+    'closed' => CategoryStatus::Closed,
+]);
+
+it('does consult the leaderboard while results are public, so the check above is meaningful', function (): void {
+    $category = categoryWithCounts(CategoryStatus::Open);
+    $gateReads = 0;
+    Illuminate\Support\Facades\DB::listen(static function ($query) use (&$gateReads): void {
+        $gateReads += (int) str_starts_with($query->sql, 'select "status" from "award_categories"');
+    });
+
+    Livewire::test(CategoryShow::class, [
+        'organization' => $category->awardProgram->organization,
+        'awardProgram' => $category->awardProgram,
+        'category' => $category,
+    ]);
+
+    expect($gateReads)->toBeGreaterThan(0);
+});
