@@ -81,6 +81,21 @@ function organizer(OrganizationRole $role = OrganizationRole::Owner, ?Organizati
 }
 
 /**
+ * Give a nominee votes the way production does: ledger rows (vote_records, D-05) and the matching counter,
+ * so fixtures never show drift. One free-vote row per call carries the whole quantity.
+ */
+function withLedgerVotes(App\Models\Nominee $nominee, int $votes): App\Models\Nominee
+{
+    if ($votes > 0) {
+        App\Models\VoteRecord::factory()->for($nominee)->create(['quantity' => $votes]);
+    }
+
+    $nominee->forceFill(['votes_count' => $votes])->save();
+
+    return $nominee;
+}
+
+/**
  * Mark the current session's password as just confirmed (Fortify's password.confirm).
  */
 function confirmPassword(): void

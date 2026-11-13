@@ -32,11 +32,11 @@ function browserCategory(CategoryStatus $status, VotingMode $mode = VotingMode::
         ->create(['slug' => 'artiste', 'name' => 'Artiste of the Year', 'price_per_vote' => 100]);
 
     foreach (BROWSER_LEAK_COUNTS as $i => $votes) {
-        Nominee::factory()
-            ->for($category)
-            ->create(['nominee_code' => "AM2{$i}", 'name' => $i === 0 ? 'Akosua Mensah' : 'Kwame Asante'])
-            ->forceFill(['votes_count' => $votes])
-            ->save();
+        $created = Nominee::factory()->for($category)->create([
+            'nominee_code' => "AM2{$i}",
+            'name' => $i === 0 ? 'Akosua Mensah' : 'Kwame Asante',
+        ]);
+        withLedgerVotes($created, $votes);
     }
 
     LeaderboardCache::refresh($category->id);

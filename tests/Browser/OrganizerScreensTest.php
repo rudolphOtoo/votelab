@@ -61,16 +61,13 @@ function organizerShowcase(): array
             ->create(['name' => $name, 'price_per_vote' => 100, 'display_order' => $i]);
 
         foreach (['Akosua Mensah-Boateng', 'Kwabena Owusu-Ansah', 'Efua Asantewaa'] as $j => $nominee) {
-            Nominee::factory()
-                ->for($categories[$i])
-                ->create([
-                    'name' => $nominee,
-                    'stage_name' => null,
-                    'avatar_url' => organizerPortrait((($i * 90) + ($j * 50)) % 360),
-                    'display_order' => $j,
-                ])
-                ->forceFill(['votes_count' => [1240, 3912, 860][$j]])
-                ->save();
+            $created = Nominee::factory()->for($categories[$i])->create([
+                'name' => $nominee,
+                'stage_name' => null,
+                'avatar_url' => organizerPortrait((($i * 90) + ($j * 50)) % 360),
+                'display_order' => $j,
+            ]);
+            withLedgerVotes($created, [1240, 3912, 860][$j]);
         }
     }
 

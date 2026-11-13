@@ -66,17 +66,14 @@ function showcaseProgram(): AwardProgram
             ]);
 
         foreach ($names as $i => $nominee) {
-            Nominee::factory()
-                ->for($category)
-                ->create([
-                    'name' => $nominee,
-                    'stage_name' => null,
-                    'nominee_code' => strtoupper(substr($slug, 0, 2)) . $code++,
-                    'avatar_url' => $i === 4 ? null : portrait((string) ((($c * 70) + ($i * 45)) % 360)),
-                    'display_order' => $i,
-                ])
-                ->forceFill(['votes_count' => [1_240, 3_912, 860, 2_105, 415][$i]])
-                ->save();
+            $created = Nominee::factory()->for($category)->create([
+                'name' => $nominee,
+                'stage_name' => null,
+                'nominee_code' => strtoupper(substr($slug, 0, 2)) . $code++,
+                'avatar_url' => $i === 4 ? null : portrait((string) ((($c * 70) + ($i * 45)) % 360)),
+                'display_order' => $i,
+            ]);
+            withLedgerVotes($created, [1_240, 3_912, 860, 2_105, 415][$i]);
         }
 
         LeaderboardCache::refresh($category->id);
