@@ -43,7 +43,7 @@ final class ShowcaseLedger
         };
 
         for ($i = 0; $i < $free; $i++) {
-            VoteRecord::factory()->for($nominee)->create(['cast_at' => self::pastMoment()]);
+            VoteRecord::factory()->for($nominee)->create(self::owners($nominee) + ['cast_at' => self::pastMoment()]);
         }
 
         $paid = $votes - $free;
@@ -79,13 +79,16 @@ final class ShowcaseLedger
             ],
         );
 
-        VoteRecord::factory()->for($nominee)->create([
-            'vote_transaction_id' => $transaction->id,
-            'is_paid' => true,
-            'quantity' => $quantity,
-            'voter_fingerprint' => null,
-            'cast_at' => $transaction->credited_at,
-        ]);
+        VoteRecord::factory()->for($nominee)->create(
+            self::owners($nominee)
+            + [
+                'vote_transaction_id' => $transaction->id,
+                'is_paid' => true,
+                'quantity' => $quantity,
+                'voter_fingerprint' => null,
+                'cast_at' => $transaction->credited_at,
+            ],
+        );
 
         return $transaction;
     }
@@ -115,6 +118,7 @@ final class ShowcaseLedger
             ->create(
                 $attributes
                 + $phone
+                + self::owners($nominee)
                 + [
                     'quantity' => $quote->quantity,
                     'unit_price' => $quote->unitPrice,
@@ -145,6 +149,21 @@ final class ShowcaseLedger
             ->each(static function (Nominee $nominee): void {
                 $nominee->forceFill(['votes_count' => (int) $nominee->voteRecords()->sum('quantity')])->save();
             });
+    }
+
+    /**
+     * The nominee's organization, program and category ids, given up front so the factories don't look the
+     * nominee up again for every row.
+     *
+     * @return array{organization_id: int, award_program_id: int, award_category_id: int}
+     */
+    private static function owners(Nominee $nominee): array
+    {
+        return [
+            'organization_id' => $nominee->organization_id,
+            'award_program_id' => $nominee->award_program_id,
+            'award_category_id' => $nominee->award_category_id,
+        ];
     }
 
     /**

@@ -26,6 +26,12 @@ function seedShowcase(): AwardProgram
     Storage::fake('public');
     Storage::fake('local');
     Mail::fake();
+    // Small portraits: the same pipeline (original, re-encode, every variant) at a fraction of the cost.
+    config([
+        'organizations.nominee_photos.width' => 80,
+        'organizations.nominee_photos.height' => 100,
+        'organizations.nominee_photos.variant_widths' => [40, 24],
+    ]);
     app()->detectEnvironment(static fn(): string => 'local');
 
     test()->seed(LocalShowcaseSeeder::class);
@@ -63,10 +69,7 @@ it('seeds every screen: each category state, a revealed tie, portraits, branding
             ->not
             ->toBeNull()
             ->and(array_keys($nominee->avatar_variants ?? []))
-            ->toEqualCanonicalizing([
-                400,
-                240,
-            ]);
+            ->toEqualCanonicalizing(config('organizations.nominee_photos.variant_widths'));
         Storage::disk('local')->assertExists((string) $nominee->photo_original_path);
     });
     expect($nominees->max(static fn(Nominee $nominee): int => mb_strlen($nominee->name)))->toBeGreaterThan(40);

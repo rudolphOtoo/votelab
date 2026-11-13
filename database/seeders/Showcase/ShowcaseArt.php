@@ -31,17 +31,23 @@ final class ShowcaseArt
         }
     }
 
+    /**
+     * Drawn at the configured portrait size (organizations.nominee_photos, 800×1000 by default), so tests that
+     * configure small portraits also draw small ones.
+     */
     public static function portrait(int $seed): UploadedFile
     {
+        $width = max(8, (int) config('organizations.nominee_photos.width', 800));
+        $scale = static fn(int $value): int => max(1, (int) round(($value * $width) / 800));
         $hue = ($seed * 47) % 360;
-        $image = self::canvas(800, 1_000);
+        $image = self::canvas($scale(800), $scale(1_000));
 
         self::verticalGradient($image, self::hsl($hue, 0.38, 0.30), self::hsl(($hue + 30) % 360, 0.45, 0.18));
         $figure = self::colour($image, self::hsl($hue, 0.30, 0.66));
         // Shoulders, neck, head.
-        imagefilledellipse($image, 400, 1_020, 640, 520, $figure);
-        imagefilledrectangle($image, 350, 560, 450, 780, $figure);
-        imagefilledellipse($image, 400, 430, 300 + (($seed % 3) * 14), 360, $figure);
+        imagefilledellipse($image, $scale(400), $scale(1_020), $scale(640), $scale(520), $figure);
+        imagefilledrectangle($image, $scale(350), $scale(560), $scale(450), $scale(780), $figure);
+        imagefilledellipse($image, $scale(400), $scale(430), $scale(300 + (($seed % 3) * 14)), $scale(360), $figure);
 
         return self::upload($image, "showcase-portrait-{$seed}");
     }
