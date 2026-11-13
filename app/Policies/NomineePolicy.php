@@ -12,6 +12,7 @@ use App\Models\AwardCategory;
 use App\Models\Nominee;
 use App\Models\User;
 use App\Policies\Concerns\ChecksPermissionMatrix;
+use App\Support\PermissionLookups;
 
 /**
  * Nominee abilities; the phase is the nominee's category's. A nominee with any vote record or
@@ -90,9 +91,9 @@ final class NomineePolicy
 
     private function inPhase(User $user, Nominee $nominee, Ability $ability): bool
     {
-        // The category's status as stored now, not as a model the caller loaded earlier.
-        $status = $nominee->awardCategory()->value('status');
-        $status = is_string($status) ? CategoryStatus::tryFrom($status) : $status;
+        // The category's status as stored now, not as a model the caller loaded earlier. Read once per list
+        // render, afresh everywhere else (PermissionLookups).
+        $status = PermissionLookups::categoryStatus($nominee->award_category_id);
         $phase = $status instanceof CategoryStatus ? CategoryPhase::of($status) : null;
 
         return $this->granted($user, $nominee->organization_id, $ability, $phase);

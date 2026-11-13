@@ -15,6 +15,7 @@ use App\Models\AwardCategory;
 use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Support\Organizer;
+use App\Support\PermissionLookups;
 use App\Support\ShareLinks;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
@@ -91,11 +92,34 @@ final class NomineeManager extends Component
         $this->notice = 'Nominee archived. Their votes are kept; new votes are refused.';
     }
 
+    /**
+     * Livewire hook: the nominee list asks each nominee's category status several times; read it once while
+     * this render runs (PermissionLookups).
+     */
+    public function rendering(): void
+    {
+        PermissionLookups::rememberCategoryStatuses();
+    }
+
+    public function rendered(): void
+    {
+        PermissionLookups::forgetCategoryStatuses();
+    }
+
     public function render(): View
     {
         $program = $this->program();
-        $category = $this->category();
-        $nominees = $category->nominees()->get();
+        $category = $this->category($program);
+        // The share kit reads each nominee's category, program and organization: hand over the ones loaded here.
+        $nominees = $category
+            ->nominees()
+            ->get()
+            ->each(
+                static fn(Nominee $n) => $n->setRelation('awardCategory', $category)->setRelation(
+                    'awardProgram',
+                    $program,
+                ),
+            );
         $editing = $this->editingId ? $nominees->firstWhere('id', $this->editingId) : null;
         $shareable = $category->status !== CategoryStatus::Draft && $program->status->isPublic();
 
@@ -118,9 +142,11 @@ final class NomineeManager extends Component
         ])->title("{$category->name} · Nominees");
     }
 
-    private function category(): AwardCategory
+    private function category(?AwardProgram $program = null): AwardCategory
     {
-        return AwardCategory::query()->where('award_program_id', $this->program()->id)->findOrFail($this->categoryId);
+        $program ??= $this->program();
+
+        return AwardCategory::query()->where('award_program_id', $program->id)->findOrFail($this->categoryId);
     }
 
     private function nominee(int $nomineeId): Nominee

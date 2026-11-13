@@ -14,6 +14,7 @@ use App\Services\Payment\PaystackPaymentGateway;
 use App\Services\Security\VoteFingerprintService;
 use App\Services\Security\VoterIdentity;
 use App\Support\Observability\Alert;
+use App\Support\PermissionLookups;
 use App\Support\ProductionGuard;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
@@ -35,6 +36,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(PaymentGateway::class, PaystackPaymentGateway::class);
         $this->app->bind(PaystackFeeCalculator::class, PaystackFeeCalculator::fromConfig(...));
+        // Request-scoped answers to repeated permission lookups (flushed between queue jobs, too).
+        $this->app->scoped(PermissionLookups::class);
     }
 
     /**

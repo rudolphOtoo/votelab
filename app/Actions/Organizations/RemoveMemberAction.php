@@ -9,6 +9,7 @@ use App\Exceptions\Organizations\LastOwnerException;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Audit;
+use App\Support\PermissionLookups;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -36,6 +37,7 @@ final readonly class RemoveMemberAction
             }
 
             $organization->users()->detach($member->id);
+            PermissionLookups::forgetMemberships();
 
             return $current;
         });

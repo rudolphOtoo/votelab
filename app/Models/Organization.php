@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\OrganizationRole;
+use App\Support\PermissionLookups;
 use Database\Factories\OrganizationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -58,6 +59,7 @@ final class Organization extends Model
     public function addMember(User $user, OrganizationRole $role): void
     {
         $this->users()->syncWithoutDetaching([$user->id => ['role' => $role->value]]);
+        PermissionLookups::forgetMemberships();
     }
 
     /**

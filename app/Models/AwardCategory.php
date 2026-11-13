@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\CategoryStatus;
 use App\Enums\VotingMode;
+use App\Support\PermissionLookups;
 use Carbon\CarbonImmutable;
 use Database\Factories\AwardCategoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -38,6 +39,13 @@ final class AwardCategory extends Model
 {
     /** @use HasFactory<AwardCategoryFactory> */
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        // Any save may change the status: permission checks later in this request must read it again.
+        static::saved(static fn(self $category) => PermissionLookups::forgetCategory($category->id));
+        static::deleted(static fn(self $category) => PermissionLookups::forgetCategory($category->id));
+    }
 
     /**
      * @return BelongsTo<Organization, $this>
