@@ -97,17 +97,6 @@ final class LeaderboardCache
     }
 
     /**
-     * Replace the cached standings with fresh ones now.
-     *
-     * @deprecated Nothing in app code calls this since D-64; only tests use it to seed the cache.
-     *             Remove in Stage 3 (hardening) once those tests seed through standings().
-     */
-    public static function refresh(int $awardCategoryId): void
-    {
-        self::rebuild($awardCategoryId);
-    }
-
-    /**
      * A stale copy exists: rebuild if no one else is, otherwise serve the stale copy without waiting.
      *
      * @param  array<int, int>  $stale

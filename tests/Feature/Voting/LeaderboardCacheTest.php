@@ -190,7 +190,7 @@ it('fails closed: returns nothing and reads no cache key for a hidden-results ca
     $nominee = Nominee::factory()->for($category)->create(['votes_count' => 31]);
 
     // A copy holding counts already sits in the cache, e.g. from before the category went blind.
-    LeaderboardCache::refresh($category->id);
+    cacheLeaderboardCopy($category->id);
 
     $read = [];
     Event::listen(RetrievingKey::class, static function (RetrievingKey $event) use (&$read): void {

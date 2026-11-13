@@ -11,7 +11,6 @@ use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
 use App\Models\VoteTransaction;
-use App\Support\LeaderboardCache;
 use App\Support\PublicSchedule;
 use Carbon\CarbonImmutable;
 use Livewire\Livewire;
@@ -45,7 +44,7 @@ function redesignCategory(
             ->save();
     }
 
-    LeaderboardCache::refresh($category->id);
+    cacheLeaderboardCopy($category->id);
 
     return $category;
 }
@@ -60,7 +59,7 @@ it('keeps display order while voting is open and orders by votes once the winner
     ])->assertDontSee('Winner</span>', escape: false);
 
     AwardCategory::query()->update(['status' => CategoryStatus::Revealed]);
-    LeaderboardCache::refresh(AwardCategory::query()->sole()->id);
+    cacheLeaderboardCopy(AwardCategory::query()->sole()->id);
 
     $this
         ->get('/campus/awards/categories/artiste')

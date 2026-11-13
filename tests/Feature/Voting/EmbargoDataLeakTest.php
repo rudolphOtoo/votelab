@@ -34,7 +34,7 @@ function categoryWithCounts(CategoryStatus $status): AwardCategory
             ->save();
     }
 
-    LeaderboardCache::refresh($category->id); // Counts are sitting in the cache too: still must not leak.
+    cacheLeaderboardCopy($category->id); // Counts are sitting in the cache too: still must not leak.
 
     return $category;
 }

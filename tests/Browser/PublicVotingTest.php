@@ -10,7 +10,6 @@ use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
 use App\Models\VoteTransaction;
-use App\Support\LeaderboardCache;
 
 // Required CI group (D-113): the voter's path through real Chromium at phone width, hidden results, and axe
 // (every impact level) on the main public pages. The Step 2 redesign must keep all of these green.
@@ -39,7 +38,7 @@ function browserCategory(CategoryStatus $status, VotingMode $mode = VotingMode::
         withLedgerVotes($created, $votes);
     }
 
-    LeaderboardCache::refresh($category->id);
+    cacheLeaderboardCopy($category->id);
 
     return $category;
 }

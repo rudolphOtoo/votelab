@@ -7,7 +7,6 @@ use App\Models\AwardCategory;
 use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
-use App\Support\LeaderboardCache;
 
 // Stage screen (UI Step 4): every scene at 1920×1080 and 1280×720 with axe at every impact level, the reveal
 // sequence, and reduced motion. Advisory, except the reduced-motion check. Organization colour #8B1E3F, an
@@ -68,7 +67,7 @@ function stageShowcase(): AwardProgram
             withLedgerVotes($nominee, $count);
         }
 
-        LeaderboardCache::refresh($category->id);
+        cacheLeaderboardCopy($category->id);
     }
 
     return $program;

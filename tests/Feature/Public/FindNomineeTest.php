@@ -8,7 +8,6 @@ use App\Models\AwardCategory;
 use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
-use App\Support\LeaderboardCache;
 use Livewire\Livewire;
 
 /** Distinctive counts, so any appearance in HTML or the Livewire snapshot is detectable. */
@@ -30,7 +29,7 @@ function searchProgram(CategoryStatus $status = CategoryStatus::Embargoed): Awar
             ->save();
     }
 
-    LeaderboardCache::refresh($category->id);
+    cacheLeaderboardCopy($category->id);
 
     return $program;
 }

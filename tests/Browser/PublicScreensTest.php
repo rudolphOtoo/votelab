@@ -10,7 +10,6 @@ use App\Models\AwardProgram;
 use App\Models\Nominee;
 use App\Models\Organization;
 use App\Models\VoteTransaction;
-use App\Support\LeaderboardCache;
 
 // Advisory group (D-113): every public screen and state at 360, 768 and 1440 px for review, each with axe at
 // every impact level. Photos are inline SVG portraits so nothing leaves the test server.
@@ -76,7 +75,7 @@ function showcaseProgram(): AwardProgram
             withLedgerVotes($created, [1_240, 3_912, 860, 2_105, 415][$i]);
         }
 
-        LeaderboardCache::refresh($category->id);
+        cacheLeaderboardCopy($category->id);
     }
 
     return $program;

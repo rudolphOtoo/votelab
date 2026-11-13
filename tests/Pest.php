@@ -50,9 +50,22 @@ expect()->extend('toBeOne', function () {
  |
  */
 
-function something()
+/**
+ * Put a category's current standings in the leaderboard cache, as a rebuild does, whatever the category's
+ * status: a fixture for "counts already sit in the cache" (e.g. from before results were hidden).
+ */
+function cacheLeaderboardCopy(int $awardCategoryId): void
 {
-    // ..
+    Illuminate\Support\Facades\Cache::put(
+        App\Support\VoteKeys::leaderboard($awardCategoryId),
+        App\Support\LeaderboardSource::standings($awardCategoryId),
+        600,
+    );
+    Illuminate\Support\Facades\Cache::put(
+        App\Support\VoteKeys::leaderboardFresh($awardCategoryId),
+        true,
+        (int) config('voting.leaderboard_cache_seconds'),
+    );
 }
 
 /**
