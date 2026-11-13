@@ -9,6 +9,7 @@ use App\Enums\PaymentTrigger;
 use App\Enums\TransactionStatus;
 use App\Exceptions\PaymentGatewayException;
 use App\Support\Observability\Alert;
+use App\Support\Queues;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -30,7 +31,9 @@ final class FulfillPaidVoteOrderJob implements ShouldQueue
 
     public function __construct(
         public readonly string $reference,
-    ) {}
+    ) {
+        $this->onQueue(Queues::PAYMENTS);
+    }
 
     /**
      * @return list<int>

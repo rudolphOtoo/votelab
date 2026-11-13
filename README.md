@@ -24,6 +24,9 @@ php artisan migrate:fresh --seed
 composer dev
 ```
 
+SQLite is the default for local development. Production runs PostgreSQL 17; to develop or test on it locally,
+see [Database](#database-postgresql-17).
+
 The demo seeder creates the **Campus Excellence Awards 2026** program for *Accra Campus Creatives*,
 with categories in every lifecycle state, plus two users (password `password`):
 
@@ -49,6 +52,9 @@ npm audit             # known advisories in JS dependencies (CI fails on any)
 ## Money and vote integrity
 
 - All money is stored as **integer pesewas**. Floats are never used for amounts.
+- **One payment is at most GHS 21,474,836.47** (2,147,483,647 pesewas, what the amount columns hold on
+  PostgreSQL). A larger order is refused before checkout with "This order is too large for one payment"
+  (D-139).
 - **The database is the ledger.** `vote_records` holds one row per free vote or credited paid transaction.
   `nominees.votes_count` is a derived counter that is only changed by atomic increments and can be
   rebuilt from the ledger.
@@ -191,14 +197,86 @@ recorded refunds, which never change them.
   (`organizations.paystack_subaccount_code`). The subaccount bears Paystack's fee, which the voter pays on
   top of the vote price. Organizations without a subaccount cannot take paid votes.
 
-### Queue worker (required)
+### Database (PostgreSQL 17)
+
+Production runs **PostgreSQL 17** (16 if your host only offers it), D-137. SQLite stays fine for local
+development; CI runs the full suite on both, and the race tests in `tests/Concurrency` only on PostgreSQL.
+
+Create the database with UTF-8 encoding and a UTF-8 locale, so nominee search (`ILIKE`) ignores case beyond
+plain ASCII letters:
+
+```sql
+CREATE ROLE votelab LOGIN PASSWORD '…';
+CREATE DATABASE votelab OWNER votelab ENCODING 'UTF8'
+    LC_COLLATE 'en_US.UTF-8' LC_CTYPE 'en_US.UTF-8' TEMPLATE template0;
+```
+
+```dotenv
+DB_CONNECTION=pgsql
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_DATABASE=votelab
+DB_USERNAME=votelab
+DB_PASSWORD=…
+```
+
+**Locally on PostgreSQL** (optional): install [Postgres.app](https://postgresapp.com) or
+[DBngin](https://dbngin.com) on macOS and start a PostgreSQL 17 server on port 5432. Run `createdb votelab`,
+set the lines above in `.env` (Postgres.app's default user is your macOS user, with no password), then
+`php artisan migrate:fresh --seed`.
+
+**Tests on PostgreSQL:** create an empty `votelab_test` database, then:
+
+```bash
+DB_CONNECTION=pgsql DB_DATABASE=votelab_test DB_USERNAME=votelab DB_PASSWORD= php artisan test --parallel
+```
+
+`--parallel` creates one database per process (`votelab_test_test_1`, …), so the role needs `CREATEDB`.
+`tests/Concurrency` runs real races: each side in its own PHP process and database connection, against
+committed data. Each test proves in `pg_stat_activity` that the database really made one side wait.
+
+**Index migrations after launch** must not lock a busy table. Build indexes with `CONCURRENTLY`, which
+PostgreSQL refuses inside a transaction, so the migration opts out of Laravel's migration transaction:
+
+```php
+return new class extends Migration {
+    public $withinTransaction = false;
+
+    public function up(): void
+    {
+        DB::statement('CREATE INDEX CONCURRENTLY IF NOT EXISTS vote_records_example_index ON vote_records (example)');
+    }
+
+    public function down(): void
+    {
+        DB::statement('DROP INDEX CONCURRENTLY IF EXISTS vote_records_example_index');
+    }
+};
+```
+
+If a concurrent build fails it leaves an `INVALID` index: drop it and run the migration again. Changes that
+rewrite a table (a column type change, a new column with a volatile default) lock it while they run, so
+schedule them outside voting windows.
+
+### Queue workers (required)
 
 Webhooks are acknowledged immediately and verified on the queue, so payments are only credited while a
-worker is running. In production, keep one alive with Supervisor (or Laravel Horizon if you use Redis queues):
+worker is running. The queue is in PostgreSQL (`QUEUE_CONNECTION=database`). Jobs are split into named
+queues (`App\Support\Queues`), so a slow job never delays a payment:
+
+| Queue | Jobs | Timeout |
+| :--- | :--- | :--- |
+| `payments` | `FulfillPaidVoteOrderJob` (webhook fulfilment): 8 tries, backoff 10 s up to 30 min | 60 s |
+| `mail` | Invitations, owners' security notices, password resets | default |
+| `default` | Anything not named above | default |
+| `images` | `GenerateNomineePhotoVariantsJob` (portrait copies, 20 nominees per job) | 75 s |
+
+Run two Supervisor programs: one takes `payments` first, then `mail`, then `default`; the other runs
+`images` alone, so CPU-heavy photo work runs on its own worker:
 
 ```ini
 [program:votelab-worker]
-command=php /var/www/votelab/artisan queue:work --sleep=3 --tries=1 --max-time=3600
+command=php /var/www/votelab/artisan queue:work --queue=payments,mail,default --sleep=3 --tries=1 --max-time=3600
 autostart=true
 autorestart=true
 stopwaitsecs=90
@@ -206,11 +284,23 @@ numprocs=2
 user=www-data
 redirect_stderr=true
 stdout_logfile=/var/www/votelab/storage/logs/worker.log
+
+[program:votelab-images]
+command=php /var/www/votelab/artisan queue:work --queue=images --sleep=3 --tries=1 --max-time=3600
+autostart=true
+autorestart=true
+stopwaitsecs=90
+numprocs=1
+user=www-data
+redirect_stderr=true
+stdout_logfile=/var/www/votelab/storage/logs/worker-images.log
 ```
 
-`FulfillPaidVoteOrderJob` sets its own `tries` (8), `backoff` (10 s up to 30 min) and `timeout` (60 s), and
-logs `fulfilment.gave_up` to the `payments` log when it runs out of attempts. Alert on failed jobs
-(`php artisan queue:failed`).
+Every job's timeout stays below the queue's `retry_after` (90 s, `DB_QUEUE_RETRY_AFTER`); otherwise a job still
+running would be handed to a second worker. `stopwaitsecs=90` lets a running job finish when Supervisor stops
+a worker. A test keeps the timeouts and these commands in step (`QueueTimeoutsTest`). Run
+`php artisan queue:restart` after each deploy. Fulfilment logs `fulfilment.gave_up` to the `payments` log when
+it runs out of attempts. Alert on failed jobs (`php artisan queue:failed`).
 
 ### Scheduler (required)
 
@@ -224,9 +314,13 @@ Add the Laravel scheduler to cron:
 
 ### Cache, locks and logs
 
-- Payment fulfilment uses atomic cache locks. In production use Redis (`CACHE_STORE=redis`,
-  `REDIS_CLIENT=predis`, or `phpredis` if the extension is installed) with AOF persistence and
-  `maxmemory-policy noeviction`, so lock keys are never evicted.
+- **Cache, locks and sessions on Redis** in production: `CACHE_STORE=redis`, `SESSION_DRIVER=redis`,
+  `REDIS_CLIENT=predis` (or `phpredis` if the extension is installed). Payment fulfilment and the leaderboard
+  use atomic cache locks, so run Redis with **persistence on** (AOF, `appendfsync everysec`) and
+  **`maxmemory-policy noeviction`**: lock keys and sessions are never evicted to make room. Size `maxmemory`
+  with headroom and alert on memory use, because a full Redis with `noeviction` refuses writes. This keeps
+  lock and cache traffic off PostgreSQL's connection budget. The queue stays on PostgreSQL. (The `database`
+  cache store also works: its locks use `INSERT … ON CONFLICT DO NOTHING`, which is safe on PostgreSQL.)
 - **Trusted proxies:** set `TRUSTED_PROXIES` to your load balancer's address or Cloudflare's published
   ranges so client IPs (used by voter fingerprints and rate limits) come from `X-Forwarded-For`. Leave it
   empty when the app is reached directly. See `.env.example` before using `*`.
@@ -275,7 +369,7 @@ Stage 3 (hardening) completes this list; the items below are already required.
   and `allowed_origins` derive from it). A mismatch behind a proxy makes every invitation link fail with 403.
 - [ ] **Mail provider configured** (`MAIL_MAILER` and its credentials, `MAIL_FROM_ADDRESS` on a domain with
   SPF/DKIM). With the default `log` mailer, invitations and password resets are never delivered.
-- [ ] **Queue worker** and **scheduler** running (see above). Invitation and password-reset emails are
+- [ ] **Queue workers** and **scheduler** running (see above). Invitation and password-reset emails are
   queued, so without a worker they are never sent.
 - [ ] **`VOTING_PHONE_HASH_KEY` set** (a random 32-byte value) before launch, and kept. Payer phone numbers
   are never stored, only an HMAC of them for exact search; **rotating the key breaks phone search on every
@@ -306,4 +400,24 @@ Stage 3 (hardening) completes this list; the items below are already required.
 - [ ] **Failed jobs are pruned:** the scheduler runs `queue:prune-failed --hours=168` daily. A failed
   invitation or reset email keeps its one-time link in `failed_jobs`; pruning removes it after 7 days.
   Retry failed emails (`php artisan queue:retry`) within that window, or send a new invitation.
-- [ ] **Cache and locks on Redis** with `noeviction` (see [Cache, locks and logs](#cache-locks-and-logs)).
+- [ ] **Cache, locks and sessions on Redis** with persistence on and `noeviction` (see
+  [Cache, locks and logs](#cache-locks-and-logs)). The queue stays on PostgreSQL.
+- [ ] **PostgreSQL 17** (16 if that's all the host offers), UTF-8 encoding and locale (see
+  [Database](#database-postgresql-17)).
+- [ ] **Connection limits fit.** Every PHP-FPM child, queue worker and scheduler run holds one connection:
+  `max_connections` (default 100, minus `superuser_reserved_connections`) must exceed PHP-FPM
+  `pm.max_children` × app servers + 3 queue workers + 2 for the scheduler, with headroom for deploys and a
+  console. Beyond that, put **PgBouncer** in front. For transaction pooling, use **PgBouncer 1.21 or later
+  with `max_prepared_statements` set** (e.g. 200): PDO uses server-side prepared statements, which older
+  PgBouncers break in transaction mode. VoteLab keeps no session state on its connections (no `SET`,
+  advisory locks, `LISTEN` or temporary tables; only `search_path`, set at connect to the default `public`).
+- [ ] **Point-in-time-recovery backups**: continuous WAL archiving plus base backups (the host's PITR, or
+  pgBackRest / WAL-G), kept at least 14 days and off the database server. **Restore one to a scratch server
+  before launch and before each season**, and check that `votes:rebuild-tallies --all --dry-run` reports no
+  drift on it. The vote ledger (`vote_records`, `vote_transactions`) is the record of every vote and payment.
+- [ ] **The app timezone stays UTC** (`config/app.php`): timestamps are stored without a zone and read as UTC,
+  and public times convert to Africa/Accra for display. Don't change it, and don't add an `APP_TIMEZONE` override.
+- [ ] **Index migrations after launch use `CREATE INDEX CONCURRENTLY`** outside a transaction (see
+  [Database](#database-postgresql-17)).
+- [ ] **Both queue worker programs running** (`payments,mail,default` and `images`; see
+  [Queue workers](#queue-workers-required)).

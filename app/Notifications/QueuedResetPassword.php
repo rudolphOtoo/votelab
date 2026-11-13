@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Notifications;
 
+use App\Support\Queues;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,4 +16,13 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 final class QueuedResetPassword extends ResetPassword implements ShouldQueue
 {
     use Queueable;
+
+    /**
+     * @param  string  $token
+     */
+    public function __construct(#[\SensitiveParameter] $token)
+    {
+        parent::__construct($token);
+        $this->onQueue(Queues::MAIL);
+    }
 }

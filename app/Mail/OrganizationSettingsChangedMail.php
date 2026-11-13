@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Models\Organization;
+use App\Support\Queues;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -30,7 +31,9 @@ final class OrganizationSettingsChangedMail extends Mailable implements ShouldQu
         public readonly string $changedBy,
         public readonly Carbon $changedAt,
         public readonly array $changes,
-    ) {}
+    ) {
+        $this->onQueue(Queues::MAIL);
+    }
 
     public function envelope(): Envelope
     {

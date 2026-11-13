@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Models\Nominee;
 use App\Support\NomineePhoto;
+use App\Support\Queues;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -23,14 +24,20 @@ final class GenerateNomineePhotoVariantsJob implements ShouldQueue
 
     public int $tries = 3;
 
-    public int $timeout = 300;
+    /**
+     * Below the queue's retry_after (90 s), so a slow chunk is never handed to a second worker while it still runs.
+     * A worst-case original (24 MP) takes about 0.5 s; the command's default chunk of 20 leaves a wide margin.
+     */
+    public int $timeout = 75;
 
     /**
      * @param  list<int>  $nomineeIds
      */
     public function __construct(
         public readonly array $nomineeIds,
-    ) {}
+    ) {
+        $this->onQueue(Queues::IMAGES);
+    }
 
     public function handle(): void
     {

@@ -17,7 +17,7 @@ final class GenerateNomineePhotoVariantsCommand extends Command
 {
     protected $signature = 'nominees:photo-variants
         {--dry-run : Count what would be queued without queuing anything}
-        {--chunk=100 : Nominees per queued job}';
+        {--chunk=20 : Nominees per queued job (keep each job well under its 75 s timeout)}';
 
     protected $description = 'Queue generation of the 400 and 240 px portrait variants for existing nominee photos';
 

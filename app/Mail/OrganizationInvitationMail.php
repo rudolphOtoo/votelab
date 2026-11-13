@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Mail;
 
 use App\Models\OrganizationInvitation;
+use App\Support\Queues;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -24,7 +25,9 @@ final class OrganizationInvitationMail extends Mailable implements ShouldQueue
     public function __construct(
         public readonly OrganizationInvitation $invitation,
         public readonly string $acceptUrl,
-    ) {}
+    ) {
+        $this->onQueue(Queues::MAIL);
+    }
 
     public function envelope(): Envelope
     {
