@@ -35,6 +35,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $forwarded = Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO;
         $middleware->trustProxies(headers: $forwarded | Request::HEADER_X_FORWARDED_PORT);
 
+        // Payments keep confirming while the site is in maintenance mode (D-143): Paystack's webhook is acknowledged
+        // (its job waits for the workers, which pause until `php artisan up`) and the voter's return from Paystack
+        // credits the votes at once.
+        $middleware->preventRequestsDuringMaintenance(except: ['api/webhooks/paystack', 'payments/callback']);
+
         // Ends sessions that predate a password change or two-factor activation (App\Support\SessionEpoch).
         $middleware->appendToGroup('web', \App\Http\Middleware\EnsureSessionIsCurrent::class);
     })

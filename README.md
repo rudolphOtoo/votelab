@@ -208,7 +208,7 @@ php artisan organizations:create "Accra Campus Creatives" accra-campus-creatives
 ```
 
 **Never run `db:seed` or `migrate --seed` in production.** The default seeder creates the demo program and two
-demo users whose password is `password`.
+demo users whose password is `password`. In production it refuses to run, even with `--force` (D-143).
 
 **Every deploy:**
 
@@ -226,15 +226,32 @@ php artisan queue:restart         # workers finish their current job, then reloa
 - **Afterwards:** check `/health` with the `X-Health-Token` header. If a deploy changes the Sentry setup, also
   run `php artisan ops:sentry-check` from staging.
 
-**During voting:**
-- Prefer deploys that need no maintenance mode: additive migrations, and new indexes built
-  `CONCURRENTLY` (see [Database](#database-postgresql-17)).
-- `php artisan down` answers Paystack's webhooks with 503. Paystack retries them, and the sweeper credits any
-  payment still pending after 10 minutes, so no paid vote is lost. Voters can't vote while the site is down,
-  though.
-- **Rollback:** go back to the previous release's code and run `php artisan optimize` again. Migrations only
-  move forward in production; a migration that has to be undone gets a new migration, written and tested
-  like any other.
+**Zero-downtime deploys (recommended):** build each release in its own directory, then switch a `current`
+symlink to it in one atomic step, as Laravel Forge, Envoyer and Deployer do. The web server and Supervisor
+point at `current`. `storage/` and `.env` are shared between releases, so uploads, logs and settings survive.
+The site never goes down, which matters most while voting is open:
+
+```bash
+# in the new release directory, with storage/ and .env linked to the shared copies
+composer install --no-dev --optimize-autoloader --no-interaction
+npm ci && npm run build
+php artisan migrate --force           # additive migrations only while voting is open
+php artisan optimize
+ln -sfn /var/www/votelab/releases/<new> /var/www/votelab/current.tmp && mv -Tf /var/www/votelab/current.tmp /var/www/votelab/current
+php artisan queue:restart             # then reload PHP-FPM so it drops cached file paths (OPcache)
+```
+
+**If a deploy really needs maintenance mode** (`php artisan down`), payments still confirm (D-143):
+- `/api/webhooks/paystack` and `/payments/callback` stay open: everything else returns 503.
+- A voter returning from Paystack has their votes credited at once.
+- A webhook is acknowledged and queued; the workers pause until `php artisan up`, then credit it.
+- Voters can't start new votes until the site is back. Keep the downtime short.
+- While voting is open, use only additive migrations, and build new indexes `CONCURRENTLY` (see
+  [Database](#database-postgresql-17)).
+
+**Rollback:** switch `current` back to the previous release (or check out its code), run `php artisan optimize`
+and `php artisan queue:restart`. Migrations only move forward in production; a migration that has to be undone
+gets a new migration, written and tested like any other.
 
 ### Paystack
 
