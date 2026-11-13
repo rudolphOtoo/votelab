@@ -1,0 +1,29 @@
+{
+    "project_hash": "955983f7-7ef5-4e11-ad14-7b07722cc0eb",
+    "components": {
+        "button": {
+            "installationTime": 1793330472
+        },
+        "icon": {
+            "installationTime": 1793330472
+        },
+        "badge": {
+            "installationTime": 1793330474
+        },
+        "card": {
+            "installationTime": 1793330475
+        },
+        "modal": {
+            "installationTime": 1793330487
+        },
+        "toast": {
+            "installationTime": 1793330488
+        },
+        "avatar": {
+            "installationTime": 1793330490
+        },
+        "input": {
+            "installationTime": 1793330495
+        }
+    }
+}
