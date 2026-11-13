@@ -74,7 +74,7 @@
         @php $errors = new \Illuminate\Support\ViewErrorBag(); $errors->put('default', new \Illuminate\Support\MessageBag(['demo_code' => ['Use 2–8 capital letters and digits, without 0, O, 1 or I.']])); @endphp
         <div class="mt-4 grid gap-6 sm:grid-cols-2">
             <div class="space-y-5">
-                <x-ui.field name="demo_email" label="Email for your receipt" type="email" optional hint="We only use it to send your receipt." autocomplete="email" inputmode="email" wire:model="email" />
+                <x-ui.field name="demo_email" label="Email for a payment receipt" type="email" optional hint="Paystack may email you a receipt for this payment." autocomplete="email" inputmode="email" wire:model="email" />
                 <x-ui.field name="demo_code" label="Nominee code" value="O1" hint="Shown on every nominee card, e.g. AM27." />
                 <x-ui.field name="demo_category" label="Category" as="select"><option>Artiste of the Year</option><option>Best Dancer</option></x-ui.field>
                 <x-ui.field name="demo_bio" label="Bio" as="textarea" hint="A sentence or two voters will see." />

@@ -245,3 +245,14 @@ it('never sends the payment reference on: no referrer, and the share links to th
         ->not->toContain('reference')
         ->not->toContain('payments/callback');
 });
+
+it('never promises a VoteLab receipt email: Paystack may send one, and the reference is on the result page', function (): void {
+    fakeGateway();
+    $nominee = redesignCategory(CategoryStatus::Open)->nominees()->firstOrFail();
+
+    Livewire::test(VoteDrawer::class, ['nomineeId' => $nominee->id])
+        ->assertSee('Email for a payment receipt')
+        ->assertSee('Paystack may email you a receipt for this payment.')
+        ->assertSee('Your payment reference is shown on the next page either way.')
+        ->assertDontSee('email your receipt');
+});

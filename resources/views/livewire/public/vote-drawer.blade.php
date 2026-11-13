@@ -133,8 +133,8 @@
                     @endif
 
                     <div class="mt-5">
-                        <x-ui.field name="email" id="vote-email" type="email" label="Email for your receipt" optional
-                            hint="We'll email your receipt and payment reference. We don't use it for anything else."
+                        <x-ui.field name="email" id="vote-email" type="email" label="Email for a payment receipt" optional
+                            hint="Paystack may email you a receipt for this payment. Your payment reference is shown on the next page either way."
                             autocomplete="email" inputmode="email" wire:model="email" />
                     </div>
                 </form>
