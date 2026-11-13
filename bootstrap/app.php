@@ -20,6 +20,12 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('api')
                 ->post('/payments/webhook/{provider}', static fn(): never => abort(404))
                 ->name('payments.webhook');
+
+            // Shadow PayZephyr's /payments/health too: unauthenticated, it would call Paystack on every request
+            // and list the enabled providers. VoteLab's own /health covers monitoring (D-109).
+            Route::middleware('api')->get('/payments/health', static fn(): never => abort(404))->name(
+                'payments.health',
+            );
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

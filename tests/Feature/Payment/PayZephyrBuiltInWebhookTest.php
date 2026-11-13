@@ -85,3 +85,11 @@ it('turns away correctly signed webhooks at PayZephyr\'s built-in route without 
 it('registers no listener for any PayZephyr event', function (string $event): void {
     expect(Event::hasListeners($event))->toBeFalse();
 })->with(PAYZEPHYR_EVENTS);
+
+it('shadows PayZephyr\'s health endpoint with a 404 and never calls a payment provider', function (): void {
+    Illuminate\Support\Facades\Http::preventStrayRequests();
+    config(['payments.health_check.enabled' => true]);
+
+    $this->getJson('/payments/health')->assertNotFound()->assertDontSee('paystack');
+    $this->get('/payments/health')->assertNotFound();
+});
