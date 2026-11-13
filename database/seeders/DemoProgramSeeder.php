@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\VoteRecord;
 use App\Models\VoteTransaction;
 use App\Services\Payment\PaystackFeeCalculator;
+use Database\Seeders\Concerns\NeverInProduction;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -26,6 +27,8 @@ use Illuminate\Support\Str;
  */
 final class DemoProgramSeeder extends Seeder
 {
+    use NeverInProduction;
+
     /**
      * @var list<array{name: string, mode: VotingMode, status: CategoryStatus, price: int, nominees: list<string>}>
      */
@@ -76,6 +79,8 @@ final class DemoProgramSeeder extends Seeder
 
     public function run(): void
     {
+        $this->refuseInProduction();
+
         $organization = Organization::query()->create([
             'name' => 'Accra Campus Creatives',
             'slug' => 'accra-campus-creatives',
