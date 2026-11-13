@@ -121,7 +121,7 @@ final class CategoryShow extends Component
         ])
             ->title($head['title'])
             ->layoutData([
-                'meta' => $this->shareMeta($nominees),
+                'meta' => $this->shareMeta($nominees, $category),
                 'description' => $head['description'],
                 'canonical' => $head['canonical'],
                 'brandOrganization' => $program->organization,
@@ -133,9 +133,10 @@ final class CategoryShow extends Component
      * code, category and program only: never counts, whatever the category's status.
      *
      * @param  \Illuminate\Database\Eloquent\Collection<int, Nominee>  $nominees
+     * @param  AwardCategory  $category  As render() loaded it, with awardProgram.organization.
      * @return array<string, string>
      */
-    private function shareMeta($nominees): array
+    private function shareMeta($nominees, AwardCategory $category): array
     {
         $nominee = $this->selectedNomineeId === null ? null : $nominees->firstWhere('id', $this->selectedNomineeId);
 
@@ -143,10 +144,7 @@ final class CategoryShow extends Component
             return [];
         }
 
-        $nominee->setRelation(
-            'awardCategory',
-            AwardCategory::query()->with('awardProgram.organization')->findOrFail($this->categoryId),
-        );
+        $nominee->setRelation('awardCategory', $category);
         $nominee->setRelation('awardProgram', $nominee->awardCategory->awardProgram);
         $share = ShareLinks::for($nominee);
 

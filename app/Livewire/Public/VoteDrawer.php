@@ -47,10 +47,14 @@ final class VoteDrawer extends Component
 
     public string $noticeTone = 'info';
 
+    /** The nominee mount() loaded, reused by the first render of the same request (never sent to the browser). */
+    private ?Nominee $mounted = null;
+
     public function mount(int $nomineeId): void
     {
-        $nominee = Nominee::query()->with('awardCategory')->findOrFail($nomineeId);
+        $nominee = Nominee::query()->with(['awardCategory', 'organization'])->findOrFail($nomineeId);
         $this->nomineeId = $nominee->id;
+        $this->mounted = $nominee;
 
         if (!$nominee->awardCategory->voting_mode->allowsPaidVotes()) {
             $this->tab = 'free';
@@ -125,7 +129,10 @@ final class VoteDrawer extends Component
 
     public function render(): View
     {
-        $nominee = Nominee::query()->with(['awardCategory', 'organization'])->findOrFail($this->nomineeId);
+        $nominee = $this->mounted ?? Nominee::query()
+            ->with(['awardCategory', 'organization'])
+            ->findOrFail($this->nomineeId);
+        $this->mounted = null;
         $mode = $nominee->awardCategory->voting_mode;
 
         [$quote, $quoteError] = [null, null];
