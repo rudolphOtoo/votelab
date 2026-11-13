@@ -117,15 +117,24 @@ it('renders every organizer screen accessibly at each width', function (string $
         'settings' => '/dashboard/organizations/campus/members?tab=settings',
     };
 
-    $page = visit($path)->resize($width, $height)->wait(0.4);
+    $page = waitUntilSettled(visit($path)->resize($width, $height));
 
     if ($screen === 'confirm-close') {
-        $page->click('Close voting')->wait(0.5);
+        waitUntil(
+            $page->click('Close voting'),
+            '[...document.querySelectorAll("[role=dialog]")].some((dialog) => dialog.checkVisibility())',
+        );
     }
 
     if ($screen === 'share-kit') {
-        $page->click('Share kit')->wait(0.8);
+        waitUntil(
+            $page->click('Share kit'),
+            'document.getElementById(document.querySelector("[aria-controls^=share-][aria-expanded=true]")'
+            . '?.getAttribute("aria-controls"))?.checkVisibility()',
+        );
     }
+
+    waitUntilSettled($page);
 
     $page
         ->assertNoJavaScriptErrors()

@@ -119,8 +119,7 @@ it('renders every public screen accessibly at each width', function (string $scr
         $page->click('Free vote');
     }
 
-    $page
-        ->wait(0.6)
+    waitUntilSettled($page)
         ->assertNoJavaScriptErrors()
         ->assertNoAccessibilityIssues(3)
         ->screenshot(fullPage: !str_starts_with($screen, 'drawer'), filename: "public-{$screen}-{$width}");
@@ -149,16 +148,18 @@ it('returns focus to the Vote button when the drawer closes', function (): void 
     fakeGateway();
     showcaseProgram();
 
-    visit('/campus/awards/categories/artiste')
+    $voteButton = 'vote-' . Nominee::query()->where('nominee_code', 'AR11')->value('id');
+
+    $page = visit('/campus/awards/categories/artiste')
         ->resize(360, 800)
-        ->click('#vote-' . Nominee::query()->where('nominee_code', 'AR11')->value('id'))
+        ->click('#' . $voteButton)
         ->assertSee('Vote for Kwabena Owusu-Ansah')
-        ->keys('#vote-quantity', 'Escape')
-        ->wait(0.5)
-        ->assertScript(
-            'document.activeElement?.id',
-            'vote-' . Nominee::query()->where('nominee_code', 'AR11')->value('id'),
-        );
+        ->keys('#vote-quantity', 'Escape');
+
+    waitUntil($page, 'document.activeElement?.id === ' . json_encode($voteButton))->assertScript(
+        'document.activeElement?.id',
+        $voteButton,
+    );
 })->group('advisory');
 
 it('serves each layout the smallest portrait that stays sharp', function (): void {
@@ -174,21 +175,28 @@ it('serves each layout the smallest portrait that stays sharp', function (): voi
     $cards = route('public.category', [$program->organization, $program, $category], absolute: false);
     $drawer = route('public.nominee', [$program->organization, $program, $nominee->nominee_code], absolute: false);
     $card = '() => document.querySelector("main ul img[srcset]").currentSrc';
+    $cardLoaded =
+        'document.querySelector("main ul img[srcset]")?.complete'
+        . ' && document.querySelector("main ul img[srcset]").currentSrc !== ""';
 
     // Viewport first, then the page: browsers keep an already-chosen larger image after a resize. The test
     // browser renders at 2 device pixels per CSS pixel, like most phones.
-    $phone = visit('/up')->resize(360, 800)->navigate($cards)->wait(0.5);
+    $phone = waitUntil(visit('/up')->resize(360, 800)->navigate($cards), $cardLoaded);
     expect($phone->script('() => window.devicePixelRatio'))->toBe(2);
 
     // A 156 px card needs 312 device pixels: the 400 px copy, never the 800 px portrait.
     expect($phone->script($card))->toEndWith('-400w.webp');
 
     // The 56 px drawer thumbnail needs 112: the 240 px copy.
-    $thumb = visit('/up')->resize(360, 800)->navigate($drawer)->wait(0.5);
+    $thumb = waitUntil(
+        visit('/up')->resize(360, 800)->navigate($drawer),
+        'document.querySelector("[role=dialog] img[srcset]")?.complete'
+        . ' && document.querySelector("[role=dialog] img[srcset]").currentSrc !== ""',
+    );
     expect($thumb->script('() => document.querySelector("[role=dialog] img[srcset]").currentSrc'))
         ->toEndWith('-240w.webp');
 
     // A 224 px desktop card needs 448: the full portrait.
-    $desktop = visit('/up')->resize(1440, 900)->navigate($cards)->wait(0.5);
+    $desktop = waitUntil(visit('/up')->resize(1440, 900)->navigate($cards), $cardLoaded);
     expect($desktop->script($card))->not->toContain('-400w')->not->toContain('-240w');
 })->group('critical');

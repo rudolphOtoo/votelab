@@ -47,15 +47,17 @@ it('takes a voter from the nominee link to checkout on a 360 px phone', function
     $gateway = fakeGateway();
     browserCategory(CategoryStatus::Open);
 
-    visit('/campus/awards/AM20')
+    $page = visit('/campus/awards/AM20')
         ->resize(360, 800)
         ->assertSee('Akosua Mensah')
         ->assertSee('Number of votes')
         ->click('[aria-label="One more vote"]')
         ->assertValue('#vote-quantity', '2')
         ->assertNoJavaScriptErrors()
-        ->click('button[type="submit"]')
-        ->wait(1.5);
+        ->click('button[type="submit"]');
+
+    // The drawer then redirects to the (fake) checkout host, so wait on the server side, not in the page.
+    waitForServer($page, static fn(): bool => VoteTransaction::query()->exists(), 'the checkout to start');
 
     $transaction = VoteTransaction::query()->sole();
 
@@ -71,7 +73,9 @@ it('never shows vote counts while results are hidden, including after a live ref
     browserCategory($status);
 
     foreach (['/campus/awards/categories/artiste', '/campus/awards/AM20', '/campus/awards'] as $path) {
-        $page = visit($path)->resize(360, 800)->wait(3.5); // past the 3 s results poll
+        // Hidden results poll every 15 s; trigger that refresh now (a real Livewire update request) and check
+        // the HTML after it, not only the first render.
+        $page = refreshLivewire(visit($path)->resize(360, 800));
 
         foreach (BROWSER_LEAK_COUNTS as $votes) {
             $page

@@ -173,3 +173,99 @@ function livewireCall(
         ],
     ]);
 }
+
+/*
+ |--------------------------------------------------------------------------
+ | Browser tests: wait for a condition, never for a fixed time
+ |--------------------------------------------------------------------------
+ |
+ | A fixed ->wait() is either too short on a slow CI machine (flaky) or too long everywhere else (slow).
+ | These wait for what the test actually needs, check every 50 ms, and fail with the condition if it never
+ | holds. The test server keeps answering requests while the browser waits.
+ |
+ */
+
+/**
+ * Wait until a JavaScript expression is truthy in the page. Polls in slices of at most 4 s, under
+ * Playwright's 5 s limit for one evaluation, until $seconds have passed.
+ */
+function waitUntil(mixed $page, string $condition, float $seconds = 10.0): mixed
+{
+    $deadline = microtime(true) + $seconds;
+
+    do {
+        $slice = (int) (max(0.05, min(4.0, $deadline - microtime(true))) * 1000);
+        $met = $page->script(<<<JS
+            () => new Promise((resolve) => {
+                const deadline = Date.now() + {$slice};
+                const check = () => {
+                    let met = false;
+                    try { met = Boolean({$condition}); } catch (error) { met = false; }
+                    if (met || Date.now() > deadline) { resolve(met); } else { setTimeout(check, 50); }
+                };
+                check();
+            })
+            JS);
+    } while ($met !== true && microtime(true) < $deadline);
+
+    expect($met)->toBeTrue("Gave up after {$seconds} s waiting for: {$condition}");
+
+    return $page;
+}
+
+/**
+ * Wait until the page has loaded, its fonts are ready and no finite animation or transition is running
+ * (opening sheets, fades), so screenshots and accessibility checks see the final state.
+ */
+function waitUntilSettled(mixed $page): mixed
+{
+    return waitUntil(
+        $page,
+        "document.readyState === 'complete' && document.fonts.status === 'loaded'"
+        . " && document.getAnimations().every((a) => a.playState !== 'running'"
+        . ' || a.effect?.getComputedTiming().iterations === Infinity)',
+    );
+}
+
+/**
+ * Re-render every Livewire component on the page through a real update request (what a poll does) and wait
+ * until the new HTML is in place.
+ */
+function refreshLivewire(mixed $page): mixed
+{
+    $milliseconds = 4000; // under Playwright's 5 s limit for one evaluation
+    $refreshed = $page->script(<<<JS
+        () => new Promise((resolve) => {
+            const components = window.Livewire?.all() ?? [];
+            if (components.length === 0) { resolve(false); return; }
+            let pending = components.length;
+            window.Livewire.hook('commit', ({ succeed, fail }) => {
+                succeed(() => setTimeout(() => { if (--pending === 0) resolve(true); }, 50));
+                fail(() => resolve(false));
+            });
+            components.forEach((component) => component.\$wire.\$refresh());
+            setTimeout(() => resolve(false), {$milliseconds});
+        })
+        JS);
+
+    expect($refreshed)->toBeTrue('The Livewire refresh did not complete.');
+
+    return $page;
+}
+
+/**
+ * Wait for something on the server side (e.g. a row the request should have written), letting the test
+ * server keep handling the browser's requests meanwhile.
+ */
+function waitForServer(mixed $page, Closure $condition, string $what, float $seconds = 10.0): void
+{
+    $deadline = microtime(true) + $seconds;
+
+    while (!$condition()) {
+        if (microtime(true) > $deadline) {
+            throw new PHPUnit\Framework\AssertionFailedError("Gave up after {$seconds} s waiting for {$what}.");
+        }
+
+        $page->wait(0.05);
+    }
+}

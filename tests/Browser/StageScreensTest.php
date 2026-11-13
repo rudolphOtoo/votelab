@@ -93,11 +93,13 @@ it('renders every stage scene accessibly on 1080p and 720p projectors', function
         default => "/stage/campus/awards?category={$scene}",
     };
     // The podium appears 1.8 s after "And the winner is…"; the intro is caught before that.
-    $settle = match ($scene) {
-        'winner', 'tie' => 3.2,
-        default => 0.6,
-    };
-    $page = visit($path)->resize($width, $height)->wait($settle);
+    $page = visit($path)->resize($width, $height);
+
+    if (in_array($scene, ['winner', 'tie'], true)) {
+        waitUntil($page, 'document.querySelector("[data-stage-winner]")?.checkVisibility()');
+    }
+
+    waitUntilSettled($page);
 
     $page
         ->assertNoJavaScriptErrors()
@@ -116,26 +118,28 @@ it('renders every stage scene accessibly on 1080p and 720p projectors', function
 it('builds the reveal: a pause, then the podium with confetti', function (): void {
     stageShowcase();
 
-    $page = visit('/stage/campus/awards?category=winner')->resize(1920, 1080)->wait(0.5);
-    $page->assertSee('And the winner is…')->assertScript(
+    $page = visit('/stage/campus/awards?category=winner')->resize(1920, 1080);
+    waitUntil($page, 'document.body.innerText.includes("And the winner is…")')->assertScript(
         'document.querySelector("[data-stage-winner]")?.checkVisibility()',
         false,
     );
 
-    $page
-        ->wait(2.4)
-        ->assertScript('document.querySelector("[data-stage-winner]")?.checkVisibility()', true)
-        ->assertScript('document.querySelector("[data-stage-confetti]").dataset.fired', 'true');
+    waitUntil(
+        $page,
+        'document.querySelector("[data-stage-winner]")?.checkVisibility()'
+        . ' && document.querySelector("[data-stage-confetti]").dataset.fired === "true"',
+    );
 })->group('advisory');
 
 it('shows the podium at once and no confetti under reduced motion', function (): void {
     stageShowcase();
 
-    visit('/stage/campus/awards?category=winner', ['reducedMotion' => 'reduce'])
-        ->resize(1920, 1080)
-        ->wait(0.4)
+    $page = visit('/stage/campus/awards?category=winner', ['reducedMotion' => 'reduce'])->resize(1920, 1080);
+
+    waitUntil($page, 'document.readyState === "complete"', 5)
         ->assertScript('document.querySelector("[data-stage-winner]")?.checkVisibility()', true)
         ->assertScript('getComputedStyle(document.querySelector("[data-stage-winner]")).animationName', 'none')
+        // Proving confetti never fires needs waiting past the moment it would (1.8 s): the one fixed wait left.
         ->wait(2.5)
         ->assertScript('document.querySelector("[data-stage-confetti]").dataset.fired ?? "no"', 'no')
         ->assertScript('document.querySelectorAll("body > canvas").length', 0);
