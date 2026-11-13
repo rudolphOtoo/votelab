@@ -17,6 +17,19 @@ use Livewire\Component;
 #[Layout('layouts::dashboard')]
 final class Dashboard extends Component
 {
+    /**
+     * The shell's organization switcher links here with ?organization=id; switchTo() refuses (403) any
+     * organization the user doesn't belong to.
+     */
+    public function mount(): void
+    {
+        $requested = request()->query('organization');
+
+        if (is_string($requested) && ctype_digit($requested)) {
+            CurrentOrganization::switchTo(Organizer::user(), (int) $requested);
+        }
+    }
+
     public function switchOrganization(int $organizationId): void
     {
         CurrentOrganization::switchTo(Organizer::user(), $organizationId);
@@ -31,7 +44,7 @@ final class Dashboard extends Component
             'organizations' => $user->organizations()->orderBy('organizations.name')->get(),
             'organization' => $organization,
             'role' => $organization === null ? null : $user->roleIn($organization),
-            'programs' => $organization?->awardPrograms()->latest('id')->get() ?? collect(),
+            'programs' => $organization?->awardPrograms()->withCount('categories')->latest('id')->get() ?? collect(),
         ])->title('Dashboard');
     }
 }

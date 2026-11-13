@@ -2,7 +2,7 @@
     <h1 class="text-2xl font-semibold tracking-tight text-ink">Security</h1>
 
     {{-- Two-factor --}}
-    <section class="mt-8 rounded-[var(--radius-lg)] border border-hairline bg-surface p-5" aria-labelledby="two-factor-heading">
+    <section class="mt-8 rounded-[var(--radius-lg)] border border-hairline bg-surface p-5 shadow-card" aria-labelledby="two-factor-heading">
         <h2 id="two-factor-heading" class="text-lg font-semibold text-ink">Two-factor authentication</h2>
 
         @if ($twoFactorOn)
@@ -32,7 +32,7 @@
                 </form>
             </div>
             @if ($required)
-                <p class="mt-3 text-xs text-ink-secondary">Owners and admins need two-factor: turning it off locks the dashboard until it's back on.</p>
+                <p class="mt-3 text-sm text-ink-secondary">Owners and admins need two-factor: turning it off locks the dashboard until it's back on.</p>
             @endif
         @elseif ($twoFactorPending)
             <p class="mt-2 text-sm text-ink-secondary">Scan this QR code with your authenticator app, then enter the 6-digit code it shows.</p>
@@ -57,7 +57,7 @@
     </section>
 
     {{-- Passkeys --}}
-    <section class="mt-6 rounded-[var(--radius-lg)] border border-hairline bg-surface p-5" aria-labelledby="passkeys-heading">
+    <section class="mt-6 rounded-[var(--radius-lg)] border border-hairline bg-surface p-5 shadow-card" aria-labelledby="passkeys-heading">
         <h2 id="passkeys-heading" class="text-lg font-semibold text-ink">Passkeys</h2>
         <p class="mt-2 text-sm text-ink-secondary">Sign in with your device's fingerprint, face or screen lock instead of a password.</p>
 
@@ -66,12 +66,12 @@
                 <li wire:key="passkey-{{ $passkey->id }}" class="flex items-center gap-3 py-3">
                     <div class="mr-auto">
                         <p class="text-sm font-medium text-ink">{{ $passkey->name }}</p>
-                        <p class="text-xs text-ink-secondary">Last used {{ $passkey->last_used_at?->diffForHumans() ?? 'never' }}</p>
+                        <p class="text-sm text-ink-secondary">Last used {{ $passkey->last_used_at?->diffForHumans() ?? 'never' }}</p>
                     </div>
                     <form method="POST" action="{{ route('passkey.destroy', $passkey) }}">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="min-h-11 rounded-[var(--radius-md)] px-3 text-sm text-danger hover:bg-danger/5">Remove<span class="sr-only"> {{ $passkey->name }}</span></button>
+                        <button type="submit" class="min-h-11 rounded-[var(--radius-md)] border border-danger bg-surface px-3 text-sm font-semibold text-danger-fg hover:bg-danger-bg">Remove<span class="sr-only"> {{ $passkey->name }}</span></button>
                     </form>
                 </li>
             @empty
@@ -83,15 +83,15 @@
             <p x-show="!supported" class="text-sm text-ink-secondary">This browser doesn't support passkeys.</p>
             <div x-show="supported" x-cloak>
                 <label for="passkey-name" class="block text-sm font-medium text-ink">Passkey name</label>
-                <input id="passkey-name" type="text" x-model="name" placeholder="Work laptop" class="mt-2 h-12 w-full rounded-[var(--radius-md)] border border-hairline bg-surface px-3 text-ink">
+                <input id="passkey-name" type="text" x-model="name" placeholder="Work laptop" class="{{ \App\Support\Design\ControlClasses::BASE }} mt-2 min-h-12">
                 <x-form.button type="button" variant="secondary" class="mt-3" x-on:click="register()" x-bind:disabled="busy">Add a passkey</x-form.button>
-                <p x-show="error" x-text="error" role="alert" class="mt-2 text-sm text-danger"></p>
+                <p x-show="error" x-text="error" role="alert" class="mt-2 text-sm font-medium text-danger-fg"></p>
             </div>
         </div>
     </section>
 
     {{-- Password --}}
-    <section class="mt-6 rounded-[var(--radius-lg)] border border-hairline bg-surface p-5" aria-labelledby="password-heading">
+    <section class="mt-6 rounded-[var(--radius-lg)] border border-hairline bg-surface p-5 shadow-card" aria-labelledby="password-heading">
         <h2 id="password-heading" class="text-lg font-semibold text-ink">Change password</h2>
         <p class="mt-2 text-sm text-ink-secondary">At least 12 characters. Other devices will be signed out.</p>
         <form method="POST" action="{{ route('user-password.update') }}" class="mt-4 max-w-sm" novalidate>

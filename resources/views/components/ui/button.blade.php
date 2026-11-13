@@ -1,5 +1,5 @@
 {{--
-  Buttons and button-styled links. variant: primary | secondary | ghost | danger. size: sm | md | lg.
+  Buttons and button-styled links. variant: primary | secondary | ghost | danger | danger-outline (opens a destructive confirmation). size: sm | md | lg.
   loading: true for a static busy state, or a Livewire action name ("save") to show the spinner while it runs.
   Every size keeps a 44 px minimum tap target.
 --}}
@@ -11,6 +11,7 @@
         'secondary' => 'border border-strong bg-surface text-ink hover:bg-hover',
         'ghost' => 'text-ink hover:bg-hover',
         'danger' => 'bg-danger text-white hover:bg-danger-fg shadow-card',
+        'danger-outline' => 'border border-danger bg-surface text-danger-fg hover:bg-danger-bg',
     ];
     $sizes = ['sm' => 'min-h-11 px-3 text-sm', 'md' => 'min-h-11 px-4 text-base', 'lg' => 'min-h-12 px-5 text-base sm:text-lg'];
     $classes = 'inline-flex select-none items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold transition-[transform,background-color] duration-[var(--duration-fast)] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-55 aria-disabled:pointer-events-none aria-disabled:opacity-55 '

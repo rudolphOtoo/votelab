@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 
 /**
@@ -34,6 +35,10 @@ final class OrganizationMembers extends Component
     public string $role = 'staff';
 
     public ?string $notice = null;
+
+    /** members | settings (settings only for someone who may change at least one of them). */
+    #[Url]
+    public string $tab = 'members';
 
     public function mount(Organization $organization): void
     {
@@ -127,6 +132,12 @@ final class OrganizationMembers extends Component
             'members' => $organization->users()->orderBy('name')->get(),
             'invitations' => $organization->invitations()->pending()->latest('id')->get(),
             'canManage' => $user->can('manageMembers', $organization),
+            'canSettings' =>
+                $canSettings =
+                    $user->can('updateProfile', $organization)
+                    || $user->can('updateSlug', $organization)
+                    || $user->can('updatePayoutSettings', $organization),
+            'current' => $canSettings && $this->tab === 'settings' ? 'settings' : 'members',
             'roles' => OrganizationRole::cases(),
         ])->title("Members · {$organization->name}");
     }

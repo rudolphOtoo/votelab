@@ -1,28 +1,45 @@
-{{-- Program sub-navigation: a horizontally scrolling tab bar on phones, no hidden menus. --}}
-@props(['program', 'current'])
+{{--
+  Program header: breadcrumb (from 640 px), title, status and public link, and the section tabs, which
+  scroll sideways on phones (no hidden menus). $crumb adds a last breadcrumb step (e.g. a category name).
+--}}
+@props(['program', 'current', 'crumb' => null])
 
 @php
+    use App\Enums\ProgramStatus;
+
     $tabs = [
         'overview' => ['Overview', route('dashboard.programs.show', $program)],
         'categories' => ['Categories & nominees', route('dashboard.programs.categories', $program)],
         'results' => ['Results & money', route('dashboard.programs.results', $program)],
     ];
+    $trail = ['Programs' => route('dashboard'), $program->title => route('dashboard.programs.show', $program)];
+
+    if ($current !== 'overview') {
+        $trail[$tabs[$current][0]] = $crumb ? $tabs[$current][1] : null;
+    }
+
+    if ($crumb) {
+        $trail[$crumb] = null;
+    } elseif ($current === 'overview') {
+        $trail[$program->title] = null;
+    }
+
+    $publicUrl = url("/{$program->organization->slug}/{$program->slug}");
 @endphp
 
 <div class="mb-6">
-    <p class="text-sm"><a href="{{ route('dashboard') }}" class="text-ink-secondary underline underline-offset-4">Dashboard</a></p>
-    <h1 class="mt-2 text-2xl font-semibold tracking-tight text-ink">{{ $program->title }}</h1>
-    <p class="mt-1 text-sm text-ink-secondary">{{ $program->status->label() }}</p>
-    <nav aria-label="Program sections" class="-mx-4 mt-4 overflow-x-auto border-b border-hairline px-4">
-        <ul class="flex min-w-max gap-1">
-            @foreach ($tabs as $key => [$label, $href])
-                <li>
-                    <a href="{{ $href }}" @if ($key === $current) aria-current="page" @endif
-                       class="inline-flex min-h-11 items-center border-b-2 border-transparent px-3 text-sm text-ink-secondary hover:text-ink aria-[current=page]:border-ink aria-[current=page]:font-medium aria-[current=page]:text-ink">
-                        {{ $label }}
-                    </a>
-                </li>
-            @endforeach
-        </ul>
-    </nav>
+    <x-ui.breadcrumb :items="$trail" class="hidden sm:flex" />
+    <a href="{{ route('dashboard') }}" class="inline-flex min-h-11 items-center gap-1 text-sm text-ink-secondary sm:hidden"><x-ui.icon name="chevron-left" class="size-4" /> Programs</a>
+
+    <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 class="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{{ $program->title }}</h1>
+        <x-ui.badge :tone="match ($program->status) { ProgramStatus::Published => 'success', ProgramStatus::Archived => 'neutral', default => 'warning' }">{{ $program->status->label() }}</x-ui.badge>
+        @if ($program->status === ProgramStatus::Published)
+            <a href="{{ $publicUrl }}" target="_blank" rel="noopener" class="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary-text underline-offset-4 hover:underline">
+                View public page <x-ui.icon name="external" class="size-4" /><span class="sr-only">(opens in a new tab)</span>
+            </a>
+        @endif
+    </div>
+
+    <x-ui.nav-tabs class="mt-4" label="Program sections" :current="$tabs[$current][0]" :items="collect($tabs)->mapWithKeys(fn ($tab) => [$tab[0] => $tab[1]])->all()" />
 </div>

@@ -7,6 +7,6 @@
 
     <div x-data="passkeyConfirm" x-cloak x-show="supported" class="mt-4">
         <x-form.button type="button" variant="secondary" x-on:click="confirm()" x-bind:disabled="busy">Confirm with a passkey</x-form.button>
-        <p x-show="error" x-text="error" role="alert" class="mt-2 text-sm text-danger"></p>
+        <p x-show="error" x-text="error" role="alert" class="mt-2 text-sm font-medium text-danger-fg"></p>
     </div>
 </x-auth.shell>

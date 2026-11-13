@@ -10,6 +10,7 @@ use App\Livewire\Admin\Concerns\ScopedToProgram;
 use App\Models\AwardProgram;
 use App\Support\LaunchChecklist;
 use App\Support\Organizer;
+use App\Support\ProgramOverview;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -93,7 +94,9 @@ final class ProgramManager extends Component
 
         return view('livewire.admin.program-manager', [
             'program' => $program,
+            'tiles' => ProgramOverview::tiles($program, $user),
             'checklist' => LaunchChecklist::for($program),
+            'fixLinks' => self::fixLinks($program),
             'canEdit' => $user->can('update', $program),
             'canPublish' => $user->can('publish', $program),
             'canUnpublish' => $user->can('unpublish', $program),
@@ -102,5 +105,26 @@ final class ProgramManager extends Component
             'graceMax' => SaveProgramAction::maximum(),
             'publicUrl' => url("/{$program->organization->slug}/{$program->slug}"),
         ])->title($program->title);
+    }
+
+    /**
+     * Where each launch-checklist item is fixed.
+     *
+     * @return array<string, string>
+     */
+    private static function fixLinks(AwardProgram $program): array
+    {
+        $categories = route('dashboard.programs.categories', $program);
+        $organization = route('dashboard.members', [$program->organization, 'tab' => 'settings']);
+
+        return [
+            'categories' => $categories,
+            'nominees' => $categories,
+            'photos' => $categories,
+            'codes' => $categories,
+            'prices' => $categories,
+            'payout' => $organization,
+            'dates' => '#program-details',
+        ];
     }
 }
