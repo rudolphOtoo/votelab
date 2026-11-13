@@ -7,12 +7,14 @@ use App\Actions\Voting\ReconcilePendingPaymentsAction;
 use App\Enums\CategoryStatus;
 use App\Enums\PaymentTrigger;
 use App\Enums\TransactionStatus;
+use App\Exceptions\PaymentGatewayException;
 use App\Models\AwardCategory;
 use App\Models\Nominee;
 use App\Models\VoteRecord;
 use App\Models\VoteTransaction;
 use App\Services\Payment\Data\GatewayPaymentStatus;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Exceptions;
 
 /**
  * A pending order created $minutesAgo minutes before "now" (2026-10-30 20:00).
@@ -180,4 +182,89 @@ it('runs from the scheduled artisan command', function (): void {
     $this->artisan('payments:reconcile-pending')->assertSuccessful();
 
     expect($this->gateway->verified)->toHaveCount(1);
+});
+
+it('does not let one reference that throws block the payments after it', function (): void {
+    Exceptions::fake();
+    $payments = captureLog('payments');
+    [$first, $broken, $last] = [staleOrder(minutesAgo: 30), staleOrder(minutesAgo: 30), staleOrder(minutesAgo: 30)];
+    foreach ([$first, $broken, $last] as $order) {
+        $this->gateway->reports($order->payment_reference, amount: $order->gross_amount);
+    }
+    $this->gateway->beforeVerifyReturns(static function (string $reference) use ($broken): void {
+        if ($reference === $broken->payment_reference) {
+            throw new RuntimeException('Unexpected failure for this one payment.');
+        }
+    });
+
+    $summary = sweep();
+
+    expect($summary->checked)
+        ->toBe(3)
+        ->and($summary->credited)
+        ->toBe(2)
+        ->and($summary->errors)
+        ->toBe(1)
+        ->and($first->fresh()?->status)
+        ->toBe(TransactionStatus::Successful)
+        ->and($last->fresh()?->status)
+        ->toBe(TransactionStatus::Successful)
+        ->and($broken->fresh()?->status)
+        ->toBe(TransactionStatus::Pending);
+
+    Exceptions::assertReported(RuntimeException::class);
+    $failure = collect($payments->getRecords())->firstWhere('message', 'sweeper.verify_failed');
+    expect($failure?->context['reference'])
+        ->toBe($broken->payment_reference)
+        ->and($failure?->context['exception'])
+        ->toBe(RuntimeException::class)
+        ->and($failure?->context['consecutive_failures'])
+        ->toBe(1);
+});
+
+it('alerts once when the same reference fails three runs in a row, and starts again after a success', function (): void {
+    $alerts = captureLog('alerts');
+    $order = staleOrder(minutesAgo: 30);
+    $this->gateway->failVerification();
+    $stuck = static fn(): int => collect($alerts->getRecords())->where('message', 'sweeper.reference_stuck')->count();
+
+    sweep();
+    sweep();
+    expect($stuck())->toBe(0);
+
+    sweep();
+    expect($stuck())->toBe(1);
+    $record = collect($alerts->getRecords())->firstWhere('message', 'sweeper.reference_stuck');
+    expect($record?->context)->toBe([
+        'reference' => $order->payment_reference,
+        'consecutive_failures' => ReconcilePendingPaymentsAction::STUCK_AFTER_RUNS,
+        'exception' => PaymentGatewayException::class,
+    ]);
+
+    sweep();
+    expect($stuck())->toBe(1); // not again on every later run
+});
+
+it('resets the failure count once the reference is verified', function (): void {
+    $alerts = captureLog('alerts');
+    $order = staleOrder(minutesAgo: 30);
+    $fail = true;
+    $this->gateway->beforeVerifyReturns(static function () use (&$fail): void {
+        if ($fail) {
+            throw new PaymentGatewayException('Paystack is down.');
+        }
+    });
+
+    sweep();
+    sweep();
+    $fail = false;
+    sweep(); // verified: still pending, count cleared
+    $fail = true;
+    sweep();
+    sweep();
+
+    expect(collect($alerts->getRecords())->where('message', 'sweeper.reference_stuck'))
+        ->toBeEmpty()
+        ->and($order->fresh()?->status)
+        ->toBe(TransactionStatus::Pending);
 });

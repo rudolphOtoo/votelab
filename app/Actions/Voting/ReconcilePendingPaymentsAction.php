@@ -8,16 +8,26 @@ use App\Enums\PaymentTrigger;
 use App\Enums\TransactionStatus;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\VoteTransaction;
+use App\Support\Observability\Alert;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Catches payments whose webhook never arrived. Re-verifies stale pending transactions through the
  * same crediting action as the webhook and callback, and expires those still unpaid after the
  * expiry window. Expiry only follows a verification that says "not paid", never an outage.
+ *
+ * A reference that fails is logged and skipped, never allowed to stop the run: references are swept in id
+ * order, so one that always failed would otherwise block every later one on every run. Unexpected failures go
+ * to Sentry; a reference that fails STUCK_AFTER_RUNS runs in a row raises an alert (sweeper.reference_stuck).
  */
 final readonly class ReconcilePendingPaymentsAction
 {
+    public const int STUCK_AFTER_RUNS = 3;
+
     public function __construct(
         private FulfillPaidVoteOrderAction $fulfil,
     ) {}
@@ -40,29 +50,18 @@ final readonly class ReconcilePendingPaymentsAction
             $counts['checked']++;
 
             try {
-                $result = $this->fulfil->execute($reference, PaymentTrigger::Sweeper);
+                $outcome = $this->sweep($reference, $expireBefore);
             } catch (PaymentGatewayException|LockTimeoutException $e) {
-                $counts['errors']++;
-                Log::channel('payments')->warning('sweeper.verify_failed', [
-                    'reference' => $reference,
-                    'trigger' => PaymentTrigger::Sweeper->value,
-                    'error' => $e->getMessage(),
-                ]);
-
-                continue;
+                // Expected: a Paystack outage (the gateway reports it) or another worker holding the order.
+                $outcome = 'errors';
+                $this->failed($reference, $e);
+            } catch (Throwable $e) {
+                $outcome = 'errors';
+                report($e);
+                $this->failed($reference, $e);
             }
 
-            $transaction = $result->transaction;
-
-            if ($result->newlyCredited) {
-                $counts['credited']++;
-            } elseif ($transaction?->status !== TransactionStatus::Pending) {
-                $counts['settled']++;
-            } elseif ($transaction->created_at !== null && $transaction->created_at->lessThanOrEqualTo($expireBefore)) {
-                $counts[$this->expire($transaction) ? 'expired' : 'settled']++;
-            } else {
-                $counts['pending']++;
-            }
+            $counts[$outcome]++;
         }
 
         $summary = new ReconciliationSummary(
@@ -77,6 +76,58 @@ final readonly class ReconcilePendingPaymentsAction
         Log::channel('payments')->info('sweeper.completed', (array) $summary);
 
         return $summary;
+    }
+
+    /**
+     * @return 'credited'|'settled'|'expired'|'pending'
+     */
+    private function sweep(string $reference, CarbonInterface $expireBefore): string
+    {
+        $result = $this->fulfil->execute($reference, PaymentTrigger::Sweeper);
+        Cache::forget(self::failuresKey($reference));
+        $transaction = $result->transaction;
+
+        if ($result->newlyCredited) {
+            return 'credited';
+        }
+
+        if ($transaction?->status !== TransactionStatus::Pending) {
+            return 'settled';
+        }
+
+        if ($transaction->created_at !== null && $transaction->created_at->lessThanOrEqualTo($expireBefore)) {
+            return $this->expire($transaction) ? 'expired' : 'settled';
+        }
+
+        return 'pending';
+    }
+
+    private function failed(string $reference, Throwable $e): void
+    {
+        $key = self::failuresKey($reference);
+        Cache::add($key, 0, now()->addDay());
+        $consecutive = (int) Cache::increment($key);
+
+        Log::channel('payments')->warning('sweeper.verify_failed', [
+            'reference' => $reference,
+            'trigger' => PaymentTrigger::Sweeper->value,
+            'error' => $e->getMessage(),
+            'exception' => $e::class,
+            'consecutive_failures' => $consecutive,
+        ]);
+
+        if ($consecutive === self::STUCK_AFTER_RUNS) {
+            Alert::raise('sweeper.reference_stuck', [
+                'reference' => $reference,
+                'consecutive_failures' => $consecutive,
+                'exception' => $e::class,
+            ]);
+        }
+    }
+
+    private static function failuresKey(string $reference): string
+    {
+        return "sweeper:failures:{$reference}";
     }
 
     private function expire(VoteTransaction $transaction): bool
