@@ -89,3 +89,25 @@ it('refuses to boot in production without VOTING_PHONE_HASH_KEY', function (): v
     config(['voting.phone_hash_key' => 'a-real-production-key']);
     expect(App\Services\Security\PhoneHasher::key())->toBe('a-real-production-key');
 });
+
+it('never uses APP_KEY for fingerprints: a fixed test key outside production', function (): void {
+    config(['voting.fingerprint_key' => null]);
+    $request = voterRequest();
+
+    expect(VoteFingerprintService::key())
+        ->toBe(VoteFingerprintService::NON_PRODUCTION_KEY)
+        ->not
+        ->toBe(config('app.key'))
+        ->and(app(VoteFingerprintService::class)->identify($request)->ipHash)
+        ->toBe(hash_hmac('sha256', '41.66.10.20', VoteFingerprintService::NON_PRODUCTION_KEY));
+});
+
+it('refuses to fingerprint in production without VOTING_FINGERPRINT_KEY', function (): void {
+    config(['voting.fingerprint_key' => '']);
+    app()->detectEnvironment(static fn(): string => 'production');
+
+    expect(VoteFingerprintService::key(...))->toThrow(RuntimeException::class, 'VOTING_FINGERPRINT_KEY must be set');
+
+    config(['voting.fingerprint_key' => 'a-real-production-key']);
+    expect(VoteFingerprintService::key())->toBe('a-real-production-key');
+});

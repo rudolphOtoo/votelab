@@ -15,6 +15,7 @@ function safeProduction(): void
         'app.debug' => false,
         'payments.providers.paystack.secret_key' => 'sk_live_real',
         'voting.phone_hash_key' => 'a-real-key',
+        'voting.fingerprint_key' => 'a-real-fingerprint-key',
     ]);
 }
 
@@ -40,6 +41,7 @@ it('refuses each unsafe setting', function (array $override, string $problem): v
     'no Paystack secret' => [['payments.providers.paystack.secret_key' => ''], 'PAYSTACK_SECRET_KEY is missing'],
     'test Paystack key' => [['payments.providers.paystack.secret_key' => 'sk_test_x'], 'live Paystack keys'],
     'no phone hash key' => [['voting.phone_hash_key' => null], 'VOTING_PHONE_HASH_KEY'],
+    'no fingerprint key' => [['voting.fingerprint_key' => ''], 'VOTING_FINGERPRINT_KEY is missing'],
     'PayZephyr transaction log on' => [['payments.logging.enabled' => true], 'PAYMENTS_LOGGING_ENABLED must be false'],
 ]);
 

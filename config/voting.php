@@ -128,7 +128,9 @@ return [
      |
      | Free-vote limits key on HMAC-SHA256(ip | user agent | device cookie) and
      | the ledger stores HMAC-SHA256(ip). Raw IPs and cookies are never stored.
-     | The key defaults to APP_KEY; rotating it resets every free-vote allowance.
+     | VOTING_FINGERPRINT_KEY is required in production (the app refuses to boot
+     | without it, D-126) and never falls back to APP_KEY; outside production a
+     | fixed test key is used. Rotating it resets every free-vote allowance.
      |
      */
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Security;
 
 use Illuminate\Http\Request;
+use RuntimeException;
 
 /**
  * Deterministic, non-reversible voter fingerprints for free-vote limits (plan DEV_B §3).
@@ -15,6 +16,8 @@ use Illuminate\Http\Request;
  */
 final readonly class VoteFingerprintService
 {
+    public const string NON_PRODUCTION_KEY = 'votelab-non-production-fingerprint-key';
+
     public function identify(Request $request): VoterIdentity
     {
         $ip = (string) $request->ip();
@@ -38,8 +41,26 @@ final readonly class VoteFingerprintService
 
     private function hash(string $value): string
     {
+        return hash_hmac('sha256', $value, self::key());
+    }
+
+    /**
+     * The dedicated fingerprint key (D-126): never APP_KEY, so rotating APP_KEY can't reset free-vote
+     * allowances. Production refuses to boot without it (ProductionGuard); elsewhere a fixed, public test key
+     * is used, so fingerprints made outside production are worthless against production data.
+     */
+    public static function key(): string
+    {
         $key = config('voting.fingerprint_key');
 
-        return hash_hmac('sha256', $value, is_string($key) && $key !== '' ? $key : (string) config('app.key'));
+        if (is_string($key) && $key !== '') {
+            return $key;
+        }
+
+        if (app()->isProduction()) {
+            throw new RuntimeException('VOTING_FINGERPRINT_KEY must be set in production.');
+        }
+
+        return self::NON_PRODUCTION_KEY;
     }
 }
