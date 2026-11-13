@@ -1,0 +1,62 @@
+@import './theme.css';
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    html {
+        -webkit-text-size-adjust: 100%;
+        text-rendering: optimizeLegibility;
+    }
+
+    /* One visible focus style everywhere (keyboard only), from the --focus-ring token. */
+    :focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+    }
+
+    /* Long Ghanaian names and category titles wrap instead of overflowing at 360 px. */
+    h1, h2, h3, h4, p, li, dd, dt, td, th, figcaption, label {
+        overflow-wrap: anywhere;
+    }
+
+    /* Figures (money, counts) never split mid-number; they may still wrap at a space. */
+    .tabular-nums {
+        overflow-wrap: normal;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+}
+
+/* Hide Alpine-controlled elements until Alpine has initialised them. */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Skeleton shimmer (respects reduced motion through the base rule above). */
+@keyframes skeleton {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+/* Stage winner reveal: spring to 1.08 (disabled for reduced motion via motion-safe in the markup). */
+@keyframes stage-win {
+    0% { transform: scale(0.98); }
+    100% { transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stage-bar { transition: none !important; }
+}

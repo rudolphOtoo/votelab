@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fails the build on any known advisory in PHP or JS dependencies (D-110). Fix by updating the package,
+  # or record an accepted risk in plan/EXECUTION_LOG.md before ignoring an advisory.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Composer audit (composer.lock)
+        run: composer audit --locked --no-interaction
+
+      - name: npm audit (package-lock.json)
+        run: npm audit --audit-level=low
+
+  quality:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          # gd (with WebP and FreeType) renders nominee photos and share images in tests.
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+
+      # Public JS ≤ 100 KB and CSS ≤ 30 KB gzipped, per-entry ceilings for the rest (D-124).
+      - name: Bundle budgets
+        run: node scripts/perf/bundle-budget.mjs
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          touch database/database.sqlite
+
+      - name: Lint and format (Mago)
+        run: composer lint:check
+
+      - name: Static analysis (Larastan level 8)
+        run: composer types:check
+
+      - name: Tests (Pest)
+        run: php artisan test --parallel
+
+      - name: Migrations and seeders run clean
+        run: php artisan migrate:fresh --seed --force
+
+  # Real-browser tests (pestphp/pest-plugin-browser + Playwright Chromium) against the production build (D-113).
+  # Required: the small critical set (vote flow at 360 px, hidden-results checks, sign-in, axe on public pages).
+  browser-critical:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+      - run: npx playwright install --with-deps chromium
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Browser tests (critical, required)
+        run: ./vendor/bin/pest tests/Browser --group=critical
+
+  # Advisory: every other browser test, including the review screenshots and the component gallery's axe scan.
+  # Doesn't fail the build; promote tests to the critical group after two weeks without flakes (D-113).
+  browser-advisory:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+      - run: npx playwright install --with-deps chromium
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Browser tests (advisory)
+        run: ./vendor/bin/pest tests/Browser --exclude-group=critical
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-screenshots
+          path: tests/Browser/Screenshots
+          if-no-files-found: ignore

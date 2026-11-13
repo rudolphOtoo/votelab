@@ -1,0 +1,21 @@
+{
+    "files": {
+        "resources/js/globals/modals.js": [
+            "modal"
+        ],
+        "resources/js/utils.js": [
+            "modal"
+        ]
+    },
+    "helpers": [],
+    "internalDependencies": {
+        "icon": [
+            "button",
+            "badge",
+            "input"
+        ],
+        "button": [
+            "badge"
+        ]
+    }
+}
