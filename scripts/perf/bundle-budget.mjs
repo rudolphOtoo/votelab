@@ -12,6 +12,8 @@ const BUDGETS = [
     // Voters on mid-range Android phones over mobile data (UI brief §4).
     { entry: 'resources/js/entries/public.js', limit: 100 * KB },
     { entry: 'resources/css/app.css', limit: 30 * KB },
+    // The payment result page: plain JavaScript, no Livewire (cleanup batch 6).
+    { entry: 'resources/js/entries/result.js', limit: 5 * KB },
     // Not voter-facing; generous ceilings so a regression is still caught.
     { entry: 'resources/js/entries/auth.js', limit: 110 * KB },
     { entry: 'resources/js/entries/admin.js', limit: 120 * KB },

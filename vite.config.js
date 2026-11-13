@@ -14,6 +14,7 @@ export default defineConfig({
                 'resources/js/entries/auth.js',
                 'resources/js/entries/admin.js',
                 'resources/js/entries/stage.js',
+                'resources/js/entries/result.js',
             ],
             refresh: true,
             // Self-hosted Instrument Sans, Latin subset, WOFF2 only (resources/fonts/instrument-sans, D-120).

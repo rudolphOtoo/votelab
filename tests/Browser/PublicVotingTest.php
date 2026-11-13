@@ -128,3 +128,31 @@ it('has no accessibility issues on the payment result pages', function (Transact
     'pending' => TransactionStatus::Pending,
     'failed' => TransactionStatus::Failed,
 ])->group('critical');
+
+it('runs the payment result page on plain JavaScript: pause and resume checks, copy the reference', function (): void {
+    fakeGateway(); // unknown references can't be verified, so a pending payment stays pending
+    $nominee = browserCategory(CategoryStatus::Open)->nominees()->firstOrFail();
+    VoteTransaction::factory()->for($nominee)->create([
+        'payment_reference' => 'VL_BROWSER_PLAIN',
+        'status' => TransactionStatus::Pending,
+        'verified_at' => null,
+    ]);
+
+    $page = visit('/payments/callback?reference=VL_BROWSER_PLAIN')->resize(360, 800);
+
+    // Cleanup batch 6: no Livewire or Alpine on this page, only the small result bundle.
+    expect($page->script('typeof window.Livewire === "undefined" && typeof window.Alpine === "undefined"'))->toBeTrue();
+    $page
+        ->assertSourceHas('/build/assets/result-')
+        ->assertSourceMissing('/build/assets/public-')
+        ->assertNoJavaScriptErrors()
+        ->assertSee('Checking again in')
+        ->click('Pause checks')
+        ->assertSee('Automatic checks paused.')
+        ->assertSee('Resume checks')
+        ->click('Resume checks')
+        ->assertSee('Checking again in')
+        ->click('Pause checks') // stay on the page for the copy check
+        ->click('[aria-label="Copy reference"]')
+        ->assertSee('Copied');
+})->group('critical');

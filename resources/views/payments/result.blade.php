@@ -24,7 +24,7 @@
     $shareText = "I just voted for {$name} in {$transaction->awardCategory->name} at {$program->title}! Vote with code {$nominee->nominee_code}: {$nomineeUrl}";
 @endphp
 
-<x-layouts::app :title="$heading" robots="noindex" :brand-organization="$organization"
+<x-layouts::app :title="$heading" robots="noindex" bundle="result" :brand-organization="$organization"
     :description="'Your vote payment for '.$name.' at '.$program->title.'.'">
     <x-public.site-header :organization="$organization" :program="$program" />
 
@@ -41,18 +41,17 @@
             <p class="mt-2 text-ink-secondary">{{ $message }}</p>
 
             @if ($transaction->status === TransactionStatus::Pending)
-                {{-- Re-checks with Paystack by reloading (each load verifies, rate-limited per device). Pausable. --}}
-                <div class="mt-5 rounded-[var(--radius-md)] bg-subtle p-4"
-                     x-data="{ seconds: 10, paused: false }"
-                     x-init="setInterval(() => { if (!paused && --seconds <= 0) { paused = true; location.reload(); } }, 1000)">
+                {{-- Re-checks with Paystack by reloading (each load verifies, rate-limited per device). Pausable.
+                     Plain JavaScript (resources/js/result.js); without it, "Check now" and the noscript line remain. --}}
+                <div class="mt-5 rounded-[var(--radius-md)] bg-subtle p-4" data-recheck="10">
                     <p class="text-sm text-ink">
-                        <span x-show="!paused">Checking again in <span class="tabular-nums" x-text="seconds">10</span> s.</span>
-                        <span x-show="paused" x-cloak>Automatic checks paused.</span>
+                        <span data-recheck-running hidden>Checking again in <span class="tabular-nums" data-recheck-seconds>10</span> s.</span>
+                        <span data-recheck-paused hidden>Automatic checks paused.</span>
                         <noscript>Refresh this page to check again.</noscript>
                     </p>
                     <div class="mt-3 flex flex-wrap gap-2">
                         <x-ui.button :href="request()->fullUrl()" size="sm">Check now</x-ui.button>
-                        <x-ui.button type="button" variant="secondary" size="sm" x-on:click="paused = !paused; seconds = 10" x-text="paused ? 'Resume checks' : 'Pause checks'">Pause checks</x-ui.button>
+                        <x-ui.button type="button" variant="secondary" size="sm" data-recheck-toggle hidden>Pause checks</x-ui.button>
                     </div>
                 </div>
             @endif
@@ -78,7 +77,16 @@
                     <dt class="shrink-0 text-ink-secondary">Reference</dt>
                     <dd class="flex min-w-0 items-center gap-1">
                         <span class="break-all font-mono text-ink">{{ $transaction->payment_reference }}</span>
-                        <x-ui.copy :value="$transaction->payment_reference" label="Copy" copied-label="Copied" variant="ghost" aria-label="Copy reference" />
+                        {{-- Same look as x-ui.copy, without Alpine (resources/js/result.js). shrink-0: the reference wraps,
+                             never the button's label (it read "Cop / y" at 360 px). --}}
+                        <span class="inline-flex shrink-0">
+                            <x-ui.button type="button" variant="ghost" size="sm" class="group" aria-label="Copy reference"
+                                :data-copy="$transaction->payment_reference" data-copied-label="Copied">
+                                <x-ui.icon name="copy" class="size-4 group-data-copied:hidden" /><x-ui.icon name="check" class="hidden size-4 group-data-copied:inline" />
+                                <span data-copy-label>Copy</span>
+                            </x-ui.button>
+                            <span class="sr-only" aria-live="polite" data-copy-status></span>
+                        </span>
                     </dd>
                 </div>
             </dl>
