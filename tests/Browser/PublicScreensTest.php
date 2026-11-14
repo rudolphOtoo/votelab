@@ -179,6 +179,12 @@ it('serves each layout the smallest portrait that stays sharp', function (): voi
         'document.querySelector("main ul img[srcset]")?.complete'
         . ' && document.querySelector("main ul img[srcset]").currentSrc !== ""';
 
+    // Warm up first: the first load in a fresh checkout compiles every view and can pass Playwright's 5 s limit
+    // (seen in scripts/ci-local.sh). These throwaway visits change nothing measured below: each measurement opens a
+    // new page.
+    visit($cards);
+    visit($drawer);
+
     // Viewport first, then the page: browsers keep an already-chosen larger image after a resize. The test
     // browser renders at 2 device pixels per CSS pixel, like most phones.
     $phone = waitUntil(visit('/up')->resize(360, 800)->navigate($cards), $cardLoaded);
