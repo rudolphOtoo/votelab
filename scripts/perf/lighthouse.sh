@@ -94,22 +94,25 @@ PAGES=(
 )
 
 echo "→ Lighthouse (mobile, simulated throttling) → $OUT"
-printf "| Page | Perf | A11y | Best pr. | SEO | LCP | CLS | TBT | Transfer |\n|---|---|---|---|---|---|---|---|---|\n" > "$OUT/summary.md"
-# ONLY=landing,sign-in measures a subset; RUNS=3 repeats each page (rows name, name-2, name-3) to spot noise.
+# Every page runs RUNS times (default 3; use 3–5) and the summary reports each page's median, recording the CPU
+# benchmark index of every run and flagging runs from a slowed-down machine (scripts/perf/summarize.mjs, D-146).
+# ONLY=landing,sign-in measures a subset.
+RUNS="${RUNS:-3}"
+MEASURED=()
 for entry in "${PAGES[@]}"; do
     page="${entry%%|*}"; url="${entry#*|}"
     if [ -n "${ONLY:-}" ] && [[ ",$ONLY," != *",$page,"* ]]; then continue; fi
-    for run in $(seq 1 "${RUNS:-1}"); do
-    name="$page"; [ "$run" -gt 1 ] && name="$page-$run"
+    MEASURED+=("$page")
+    for run in $(seq 1 "$RUNS"); do
     npx --yes "$LIGHTHOUSE" "$url" --quiet --form-factor=mobile --throttling-method=simulate \
         --chrome-flags="--headless=new --no-sandbox --ignore-certificate-errors" \
-        --output=json --output=html --output-path="$OUT/$name" >/dev/null 2>&1 || {
-            echo "  ! $name failed (HTTP $(curl -sk -o /dev/null -w '%{http_code}' "$url")); last log lines:"
+        --output=json --output=html --output-path="$OUT/$page-$run" >/dev/null 2>&1 || {
+            echo "  ! $page-$run failed (HTTP $(curl -sk -o /dev/null -w '%{http_code}' "$url")); last log lines:"
             grep -E '\.(ERROR|CRITICAL|EMERGENCY)' "$APP/storage/logs/laravel.log" 2>/dev/null | tail -n 1 | cut -c1-400 | sed 's/^/    /'
         }
-    node "$REPO/scripts/perf/summarize.mjs" "$OUT/$name.report.json" "$name" >> "$OUT/summary.md"
     done
 done
+node "$REPO/scripts/perf/summarize.mjs" --median "$OUT" "${MEASURED[@]}" > "$OUT/summary.md"
 cat "$OUT/summary.md"
 echo
-node "$REPO/scripts/perf/summarize.mjs" --bfcache "$OUT"/*.report.json
+node "$REPO/scripts/perf/summarize.mjs" --bfcache "$OUT"/*-1.report.json
