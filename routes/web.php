@@ -52,12 +52,6 @@ Route::get('/dev/payments/{status}', App\Http\Controllers\Dev\PaymentResultPrevi
     '[a-z_]+',
 )->name('dev.payments.preview');
 
-// Homepage design directions, Step A of the homepage brief: APP_ENV=local only, 404 everywhere else; read only.
-Route::get('/dev/homepage/{direction}', App\Http\Controllers\Dev\HomepageDirectionController::class)->where(
-    'direction',
-    '[a-z]',
-)->name('dev.homepage');
-
 // Health for uptime monitors (D-109): JSON, 503 when votes can't be taken safely.
 Route::get('/health', HealthController::class)->middleware('throttle:health')->name('health');
 
