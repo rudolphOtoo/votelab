@@ -61,6 +61,11 @@ jobs:
           path: ~/.composer/cache/files
           key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
 
+      # Before Composer: its package:discover script boots the app, and without .env Laravel defaults to
+      # APP_ENV=production, where the boot guard (D-106) refuses to start. .env.example sets APP_ENV=local.
+      - name: Create .env
+        run: cp .env.example .env
+
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci && npm run build
 
@@ -70,7 +75,6 @@ jobs:
 
       - name: Prepare environment
         run: |
-          cp .env.example .env
           php artisan key:generate
           touch database/database.sqlite
 
@@ -133,12 +137,16 @@ jobs:
           path: ~/.composer/cache/files
           key: composer-8.4-${{ hashFiles('composer.lock') }}
 
+      # Before Composer: its package:discover script boots the app, and without .env Laravel defaults to
+      # APP_ENV=production, where the boot guard (D-106) refuses to start. .env.example sets APP_ENV=local.
+      - name: Create .env
+        run: cp .env.example .env
+
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci && npm run build
 
       - name: Prepare environment
         run: |
-          cp .env.example .env
           php artisan key:generate
 
       - name: Server version
@@ -186,12 +194,16 @@ jobs:
           path: ~/.composer/cache/files
           key: composer-8.4-${{ hashFiles('composer.lock') }}
 
+      # Before Composer: its package:discover script boots the app, and without .env Laravel defaults to
+      # APP_ENV=production, where the boot guard (D-106) refuses to start. .env.example sets APP_ENV=local.
+      - name: Create .env
+        run: cp .env.example .env
+
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci && npm run build
 
       - name: Prepare environment
         run: |
-          cp .env.example .env
           php artisan key:generate
 
       - name: Mutation testing (money and ledger classes)
@@ -217,13 +229,17 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Before Composer: its package:discover script boots the app, and without .env Laravel defaults to
+      # APP_ENV=production, where the boot guard (D-106) refuses to start. .env.example sets APP_ENV=local.
+      - name: Create .env
+        run: cp .env.example .env
+
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci && npm run build
       - run: npx playwright install --with-deps chromium
 
       - name: Prepare environment
         run: |
-          cp .env.example .env
           php artisan key:generate
 
       - name: Browser tests (critical, required)
@@ -248,13 +264,17 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Before Composer: its package:discover script boots the app, and without .env Laravel defaults to
+      # APP_ENV=production, where the boot guard (D-106) refuses to start. .env.example sets APP_ENV=local.
+      - name: Create .env
+        run: cp .env.example .env
+
       - run: composer install --no-interaction --prefer-dist --no-progress
       - run: npm ci && npm run build
       - run: npx playwright install --with-deps chromium
 
       - name: Prepare environment
         run: |
-          cp .env.example .env
           php artisan key:generate
 
       - name: Browser tests (advisory)

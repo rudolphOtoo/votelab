@@ -16,9 +16,9 @@ PHP 8.4+, Laravel 13, Livewire 4, Fortify, Tailwind CSS 4 with the VoteLab desig
 ## Local setup
 
 ```bash
+cp .env.example .env    # first: Composer's package discovery boots the app, which needs APP_ENV=local
 composer install
 npm install
-cp .env.example .env
 php artisan key:generate
 touch database/database.sqlite
 php artisan migrate:fresh --seed
