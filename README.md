@@ -6,6 +6,7 @@ Organizers run categories through a lifecycle (Draft → Open → Embargoed → 
 and present the results on an auditorium stage screen.
 
 - Plans: [`plan/`](plan/). Execution status and decisions: [`plan/EXECUTION_LOG.md`](plan/EXECUTION_LOG.md).
+- How it works (money path, hidden results, permissions): [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Stack
