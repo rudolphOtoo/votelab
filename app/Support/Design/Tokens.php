@@ -56,6 +56,30 @@ final class Tokens
     ];
 
     /**
+     * Public site theme (homepage brief, direction A "Stage night").
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: float}>
+     */
+    private const array SITE_PAIRS = [
+        ['Site headline on hero',          'hero-text',         'hero-bg',     Contrast::AA_TEXT],
+        ['Site supporting text on hero',   'hero-muted',        'hero-bg',     Contrast::AA_TEXT],
+        ['Site gold text on hero',         'hero-accent',       'hero-bg',     Contrast::AA_TEXT],
+        ['Site hero button label',         'hero-accent-fg',    'hero-accent', Contrast::AA_TEXT],
+        ['Site search text',               'hero-text',         'hero-field',  Contrast::AA_TEXT],
+        ['Site search placeholder',        'hero-muted',        'hero-field',  Contrast::AA_TEXT],
+        ['Site muted text on raised hero', 'hero-muted',        'hero-raised', Contrast::AA_TEXT],
+        ['Site search field border',       'hero-field-border', 'hero-bg',     Contrast::AA_LARGE_OR_UI],
+        ['Site focus ring on hero',        'hero-focus',        'hero-bg',     Contrast::AA_LARGE_OR_UI],
+        ['Site button label',              'brand-fg',          'brand',       Contrast::AA_TEXT],
+        ['Site button label (hover)',      'brand-fg',          'brand-hover', Contrast::AA_TEXT],
+        ['Site link text on page',         'brand-text',        'bg-canvas',   Contrast::AA_TEXT],
+        ['Site link text on card',         'brand-text',        'bg-surface',  Contrast::AA_TEXT],
+        ['Site status pill',               'pill-fg',           'pill-bg',     Contrast::AA_TEXT],
+        ['Site focus ring on page',        'focus-ring',        'bg-canvas',   Contrast::AA_LARGE_OR_UI],
+        ['Site gold accent on hero',       'gold',              'hero-bg',     Contrast::AA_LARGE_OR_UI],
+    ];
+
+    /**
      * Colour tokens of a theme block (':root' or "[data-theme='stage']"), var() references resolved.
      *
      * @return array<string, string> name (without --) => #rrggbb
@@ -90,7 +114,11 @@ final class Tokens
     public static function pairs(): array
     {
         $out = [];
-        $themes = ['light' => [':root', self::LIGHT_PAIRS], 'stage' => ["[data-theme='stage']", self::STAGE_PAIRS]];
+        $themes = [
+            'light' => [':root', self::LIGHT_PAIRS],
+            'stage' => ["[data-theme='stage']", self::STAGE_PAIRS],
+            'site' => ["[data-theme='site']", self::SITE_PAIRS],
+        ];
 
         foreach ($themes as $theme => [$selector, $list]) {
             $colors = self::colors($selector);

@@ -25,6 +25,11 @@ Schedule::command('votes:rebuild-tallies', ['--all' => true, '--dry-run' => true
     ->withoutOverlapping()
     ->onOneServer();
 
+// Organizer "Request access" submissions are deleted 180 days after they arrive (plan/SITE.md decision 8).
+Schedule::command('model:prune', ['--model' => [App\Models\AccessRequest::class]])
+    ->daily()
+    ->onOneServer();
+
 // Scheduler heartbeat for /health: if this stops, sweeps, pruning and the nightly audit have stopped too.
 Schedule::call(static fn() => Cache::put(HealthController::HEARTBEAT_KEY, now()->timestamp, 3600))
     ->name('health-heartbeat')

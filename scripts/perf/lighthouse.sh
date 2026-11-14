@@ -84,6 +84,8 @@ PROGRAM="accra-campus-creatives/campus-excellence-awards-2026"
 CATEGORY="$(cd "$APP" && php artisan tinker --execute='echo App\Models\AwardCategory::query()->where("status","open")->orderBy("id")->value("slug");')"
 CODE="$(cd "$APP" && php artisan tinker --execute='echo App\Models\Nominee::query()->whereNull("archived_at")->orderBy("id")->value("nominee_code");')"
 PAGES=(
+    "homepage|$BASE/"
+    "results|$BASE/results"
     "landing|$BASE/$PROGRAM"
     "category|$BASE/$PROGRAM/categories/$CATEGORY"
     "nominee-deep-link|$BASE/$PROGRAM/$CODE"

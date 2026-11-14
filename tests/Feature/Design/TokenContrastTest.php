@@ -22,10 +22,10 @@ it('reads every colour pair from theme.css', function (): void {
             ->toBeTrue("{$pair['usage']} has no background token");
     }
 
-    expect(Tokens::pairs())->toHaveCount(28);
+    expect(Tokens::pairs())->toHaveCount(44);
 });
 
-it('meets WCAG 2.2 AA for every text and UI colour pair, light and stage', function (): void {
+it('meets WCAG 2.2 AA for every text and UI colour pair, light, stage and site', function (): void {
     $failures = array_filter(
         Tokens::pairs(),
         static fn(array $pair): bool => Contrast::ratio($pair['foreground'], $pair['background']) < $pair['minimum'],

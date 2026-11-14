@@ -517,6 +517,11 @@ Stage 3 (hardening) completes this list; the items below are already required.
   and public times convert to Africa/Accra for display. Don't change it, and don't add an `APP_TIMEZONE` override.
 - [ ] **Index migrations after launch use `CREATE INDEX CONCURRENTLY`** outside a transaction (see
   [Database](#database-postgresql-17)).
+- [ ] **Public site details are real** (`config/site.php`): the defaults are dummy values (`support@votelab.example`,
+  numbers of zeros, `[VoteLab legal name]`). Set `SITE_SUPPORT_EMAIL` (request-access emails go there),
+  `SITE_SUPPORT_WHATSAPP`, `SITE_SUPPORT_PHONE`, `SITE_FEE_WORDING`, `SITE_LEGAL_NAME` and `SITE_LEGAL_ADDRESS`, fill
+  the `[bracketed]` placeholders on `/privacy`, and set `SITE_LEGAL_DRAFT=false` only once a lawyer has approved the
+  terms, privacy and refund pages.
 - [ ] **No pcov or xdebug on production servers** (`php -m` lists neither, for PHP-FPM and the CLI). pcov
   measures test coverage for mutation testing, locally and in CI only (D-146); never `pecl install` it on a
   server. The boot guard refuses to start if either is loaded.

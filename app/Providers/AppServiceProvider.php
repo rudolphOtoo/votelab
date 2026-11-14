@@ -6,6 +6,9 @@ namespace App\Providers;
 
 use App\Contracts\PaymentGateway;
 use App\Http\Middleware\RequireTwoFactorForManagers;
+use App\Models\AwardCategory;
+use App\Models\AwardProgram;
+use App\Models\Nominee;
 use App\Models\Organization;
 use App\Models\User;
 use App\Policies\ProgramReportingPolicy;
@@ -16,6 +19,7 @@ use App\Services\Security\VoterIdentity;
 use App\Support\Observability\Alert;
 use App\Support\PermissionLookups;
 use App\Support\ProductionGuard;
+use App\Support\Site\SiteDirectory;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -50,6 +54,13 @@ class AppServiceProvider extends ServiceProvider
         // Production refuses to start on an unsafe configuration (D-106, includes the phone key of D-101).
         if ($this->app->isProduction()) {
             ProductionGuard::enforce();
+        }
+
+        // The public site's cached lists (homepage, /results, sitemap) are retired whenever what they show changes.
+        // Vote increments are plain queries and don't fire these, so voting never clears them.
+        foreach ([AwardProgram::class, AwardCategory::class, Nominee::class, Organization::class] as $model) {
+            $model::saved(SiteDirectory::forget(...));
+            $model::deleted(SiteDirectory::forget(...));
         }
 
         // Every failed job is an operator alert (D-108). Names only: payloads can hold emails.
@@ -123,6 +134,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('stage', static fn(Request|string $from): Limit => Limit::perMinute($limits(
             'stage_per_ip',
         ))->by('stage:' . (is_string($from) ? $from : app(VoteFingerprintService::class)->identify($from)->ipHash)));
+
+        // Request access (plan/SITE.md): a form someone fills in once, so hourly limits per device and per network.
+        RateLimiter::for('access-request', static fn(VoterIdentity $voter): array => [
+            Limit::perHour(3)->by("access:{$voter->rateKey()}"),
+            Limit::perHour(20)->by("access-ip:{$voter->ipHash}"),
+        ]);
 
         RateLimiter::for('vote-checkout', static fn(VoterIdentity $voter, int $nomineeId): array => [
             Limit::perMinute($limits('checkout_per_voter'))->by($voter->rateKey()),

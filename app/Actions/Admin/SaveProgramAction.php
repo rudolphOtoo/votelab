@@ -102,6 +102,34 @@ final readonly class SaveProgramAction
         return $program;
     }
 
+    /**
+     * "Hide from the VoteLab homepage": a hidden program stays reachable by its own link but is left out of the
+     * homepage, /results and the sitemap (plan/SITE.md decision 3). Same permission as editing the program; audited.
+     *
+     * @throws AuthorizationException
+     */
+    public function setHiddenFromHomepage(AwardProgram $program, User $actor, bool $hidden): AwardProgram
+    {
+        $program = AwardProgram::query()->findOrFail($program->id);
+        Gate::forUser($actor)->authorize('update', $program);
+
+        if ($program->isListed() === !$hidden) {
+            return $program;
+        }
+
+        $program->forceFill(['settings' => [
+            ...($program->settings ?? []),
+            AwardProgram::HIDDEN_FROM_HOMEPAGE => $hidden,
+        ]])->save();
+
+        Audit::record('program.listing_changed', $actor, $program, [
+            'before' => [AwardProgram::HIDDEN_FROM_HOMEPAGE => !$hidden],
+            'after' => [AwardProgram::HIDDEN_FROM_HOMEPAGE => $hidden],
+        ]);
+
+        return $program;
+    }
+
     public static function maximum(): int
     {
         return (int) config('voting.close_grace_minutes');

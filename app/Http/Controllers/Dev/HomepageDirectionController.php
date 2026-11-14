@@ -9,6 +9,7 @@ use App\Enums\ProgramStatus;
 use App\Models\AwardProgram;
 use App\Support\Dev\HomepageDirections;
 use App\Support\PublicSchedule;
+use App\Support\Site\Countdown;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -89,13 +90,6 @@ final class HomepageDirectionController
      */
     public static function closesIn(CarbonImmutable $closesAt, CarbonImmutable $now): string
     {
-        $minutes = (int) floor(max(0, $closesAt->getTimestamp() - $now->getTimestamp()) / 60);
-
-        return match (true) {
-            $minutes < 1 => 'Closing now',
-            $minutes < 60 => "Closes in {$minutes}m",
-            $minutes < 1_440 => sprintf('Closes in %dh %dm', intdiv($minutes, 60), $minutes % 60),
-            default => sprintf('Closes in %dd %dh', intdiv($minutes, 1_440), intdiv($minutes % 1_440, 60)),
-        };
+        return Countdown::closesIn($closesAt, $now);
     }
 }

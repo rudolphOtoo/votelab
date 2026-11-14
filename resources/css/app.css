@@ -71,3 +71,15 @@
 .js-reveal [data-reveal] {
     transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
 }
+
+/* Public site hero (resources/views/components/site/hero-art.blade.php): a slow glow and light sweep. Under reduced
+   motion the base rule above stops both. */
+@keyframes site-glow {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+@keyframes site-sweep {
+    from { transform: translateX(-60%) rotate(12deg); }
+    to { transform: translateX(160%) rotate(12deg); }
+}

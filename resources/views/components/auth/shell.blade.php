@@ -3,7 +3,7 @@
 
 @php $bag = $errors->getBag($errorBag); @endphp
 
-<x-layouts::app :title="$title" bundle="auth">
+<x-layouts::app :title="$title" bundle="auth" robots="noindex">
     <main class="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10">
         <a href="{{ url('/') }}" class="mb-8 inline-flex items-center gap-2 self-start text-base font-semibold tracking-tight text-ink">
             <span class="flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-primary text-sm text-primary-fg" aria-hidden="true">V</span>

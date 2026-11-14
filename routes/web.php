@@ -7,6 +7,11 @@ use App\Http\Controllers\Admin\NomineeOriginalPhotoController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\Payment\PaymentCallbackController;
 use App\Http\Controllers\Public\ShareImageController;
+use App\Http\Controllers\Site\AccessRequestController;
+use App\Http\Controllers\Site\HomeController;
+use App\Http\Controllers\Site\RobotsController;
+use App\Http\Controllers\Site\SitemapController;
+use App\Http\Controllers\Site\SitePageController;
 use App\Http\Middleware\EnsureVoterCookie;
 use App\Http\Middleware\RequireTwoFactorForManagers;
 use App\Livewire\Admin\AccountSecurity;
@@ -21,7 +26,6 @@ use App\Livewire\Auth\AcceptInvitation;
 use App\Livewire\Public\CategoryShow;
 use App\Livewire\Public\ProgramLanding;
 use App\Livewire\Stage\StageLeaderboard;
-use App\Support\DedicatedSite;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/payments/callback', PaymentCallbackController::class)->middleware('throttle:payment-callback')->name(
@@ -115,16 +119,22 @@ Route::middleware('auth')->group(static function (): void {
  */
 
 Route::middleware([EnsureVoterCookie::class, 'throttle:public-pages'])->group(static function (): void {
-    // Dedicated mode serves the home program at "/"; otherwise the default welcome page.
-    Route::get('/', static function () {
-        $site = DedicatedSite::resolve();
-
-        if ($site?->program === null) {
-            return view('welcome');
-        }
-
-        return view('public.home', ['organization' => $site->organization, 'program' => $site->program]);
-    })->name('home');
+    // The public site (plan/SITE.md). "/" in dedicated mode is unchanged (the organization's program, or its "No live
+    // program right now" page); otherwise the VoteLab homepage. Every first segment here is a reserved slug.
+    Route::get('/', HomeController::class)->name('home');
+    Route::get('/results', [SitePageController::class, 'results'])->name('site.results');
+    Route::get('/organizers', [SitePageController::class, 'organizers'])->name('site.organizers');
+    Route::get('/organizers/request-access', [AccessRequestController::class, 'create'])->name('site.request-access');
+    Route::post('/organizers/request-access', [AccessRequestController::class, 'store'])->name(
+        'site.request-access.store',
+    );
+    Route::get('/help', [SitePageController::class, 'help'])->name('site.help');
+    Route::get('/contact', [SitePageController::class, 'contact'])->name('site.contact');
+    Route::get('/terms', [SitePageController::class, 'legal'])->defaults('page', 'terms')->name('site.terms');
+    Route::get('/privacy', [SitePageController::class, 'legal'])->defaults('page', 'privacy')->name('site.privacy');
+    Route::get('/refunds', [SitePageController::class, 'legal'])->defaults('page', 'refunds')->name('site.refunds');
+    Route::get('/sitemap.xml', SitemapController::class)->name('site.sitemap');
+    Route::get('/robots.txt', RobotsController::class)->name('site.robots');
 
     Route::scopeBindings()
         ->where([

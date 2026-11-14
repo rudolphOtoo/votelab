@@ -3,7 +3,7 @@
 
 const MINUTE = 60_000;
 
-// "Closes in 2d 4h": the same wording as HomepageDirectionController::closesIn(), kept current every 30 s.
+// "Closes in 2d 4h": the same wording as App\Support\Site\Countdown::closesIn(), kept current every 30 s.
 export function closesIn(closesAt, now = Date.now()) {
     const minutes = Math.floor(Math.max(0, closesAt - now) / MINUTE);
 

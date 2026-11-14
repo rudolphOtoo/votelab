@@ -107,6 +107,33 @@
     --focus-ring: #fbbf24;
 }
 
+/* Public site: homepage, results, organizer, help and legal pages (homepage brief, direction A "Stage night").
+   Light reading surfaces like :root; actions in basalt with gold labels; a basalt hero with a gold spotlight.
+   Pairs checked by tests/Feature/Design/TokenContrastTest.php (Tokens::SITE_PAIRS). */
+[data-theme='site'] {
+    --brand: #121316;
+    --brand-hover: #2b2e34;
+    --brand-fg: #fbbf24;
+    --brand-text: #7c4a03;
+    --brand-subtle: #fdf1d3;
+    --accent-brand: #121316;
+    --accent-brand-fg: #fbbf24;
+    --border-focused: #121316;
+    --focus-ring: #121316;
+    --pill-bg: #fdf1d3;
+    --pill-fg: #7c4a03;
+    --gold: #fbbf24;
+    --hero-bg: #121316;
+    --hero-raised: #1d2024;
+    --hero-text: #f5f5f4;
+    --hero-muted: #b8b1aa;
+    --hero-accent: #fbbf24;
+    --hero-accent-fg: #121316;
+    --hero-field: #1d2024;
+    --hero-field-border: #8a847d;
+    --hero-focus: #fbbf24;
+}
+
 @theme inline {
     --color-canvas: var(--bg-canvas);
     --color-surface: var(--bg-surface);
@@ -153,6 +180,20 @@
     --shadow-card: var(--shadow-sm);
     --shadow-raised: var(--shadow-md);
     --shadow-overlay: var(--shadow-lg);
+
+    /* Public site theme only ([data-theme='site']) */
+    --color-pill: var(--pill-bg);
+    --color-pill-fg: var(--pill-fg);
+    --color-gold: var(--gold);
+    --color-hero: var(--hero-bg);
+    --color-hero-raised: var(--hero-raised);
+    --color-hero-ink: var(--hero-text);
+    --color-hero-muted: var(--hero-muted);
+    --color-hero-accent: var(--hero-accent);
+    --color-hero-accent-fg: var(--hero-accent-fg);
+    --color-hero-field: var(--hero-field);
+    --color-hero-field-border: var(--hero-field-border);
+    --color-hero-focus: var(--hero-focus);
 }
 
 /* Type scale: minor third (1.2) from 16 px, line heights tuned for reading on small screens. */

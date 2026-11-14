@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\ProgramStatus;
 use Database\Factories\AwardProgramFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -69,6 +70,34 @@ final class AwardProgram extends Model
     /**
      * @return array<string, string>
      */
+    /** The settings key behind "Hide from the VoteLab homepage" (plan/SITE.md decision 3). */
+    public const string HIDDEN_FROM_HOMEPAGE = 'hidden_from_homepage';
+
+    /**
+     * Whether the program may appear on the VoteLab homepage, /results and the sitemap. A hidden program stays
+     * reachable by its own link.
+     */
+    public function isListed(): bool
+    {
+        return ($this->settings[self::HIDDEN_FROM_HOMEPAGE] ?? false) !== true;
+    }
+
+    /**
+     * Programs not hidden from the VoteLab homepage (no setting, or the setting false).
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeListed(Builder $query): Builder
+    {
+        return $query->where(
+            static fn(Builder $q) => $q->whereNull('settings->' . self::HIDDEN_FROM_HOMEPAGE)->orWhere(
+                'settings->' . self::HIDDEN_FROM_HOMEPAGE,
+                false,
+            ),
+        );
+    }
+
     /**
      * A program by id ("12") or by "organization-slug/program-slug", for commands.
      */

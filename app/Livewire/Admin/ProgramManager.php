@@ -81,6 +81,14 @@ final class ProgramManager extends Component
         $this->notice = 'Unpublished.';
     }
 
+    public function toggleHomepageListing(SaveProgramAction $save): void
+    {
+        $program = $save->setHiddenFromHomepage($this->program(), Organizer::user(), $this->program()->isListed());
+        $this->notice = $program->isListed()
+            ? 'Shown on the VoteLab homepage again.'
+            : 'Hidden from the VoteLab homepage. Its own link still works.';
+    }
+
     public function archive(ChangeProgramStatusAction $change): void
     {
         $change->archive($this->program(), Organizer::user());
@@ -104,6 +112,7 @@ final class ProgramManager extends Component
             'graceMin' => SaveProgramAction::minimum(),
             'graceMax' => SaveProgramAction::maximum(),
             'publicUrl' => url("/{$program->organization->slug}/{$program->slug}"),
+            'hiddenFromHomepage' => !$program->isListed(),
         ])->title($program->title);
     }
 

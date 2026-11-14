@@ -23,7 +23,7 @@ use Livewire\Component;
  * screen (skipRender), and the page's script suppresses Livewire's error dialog so a failed poll never
  * shows an error to the audience.
  */
-#[Layout('layouts::app', ['theme' => 'stage', 'bundle' => 'stage'])]
+#[Layout('layouts::app', ['theme' => 'stage', 'bundle' => 'stage', 'robots' => 'noindex'])]
 final class StageLeaderboard extends Component
 {
     #[Locked]

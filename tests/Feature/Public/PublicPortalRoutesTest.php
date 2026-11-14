@@ -107,6 +107,7 @@ it('serves the home program at / in dedicated mode', function (): void {
     $this->get('/')->assertOk()->assertSee('Excellence Awards 2026')->assertSee('Artiste of the Year');
 });
 
-it('serves the default page at / in multi-tenant mode', function (): void {
-    $this->get('/')->assertOk()->assertDontSee('Excellence Awards 2026');
+it('serves the VoteLab homepage at / in multi-tenant mode, not a program page', function (): void {
+    // The homepage lists live programs by name (plan/SITE.md), but never shows one program's own page.
+    $this->get('/')->assertOk()->assertSee('Vote for your favourites.')->assertDontSee('Artiste of the Year');
 });

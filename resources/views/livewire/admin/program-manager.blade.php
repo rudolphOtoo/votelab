@@ -76,6 +76,27 @@
                             <x-ui.button :href="'https://wa.me/?text='.rawurlencode('Vote in '.$program->title.': '.$publicUrl)" variant="secondary" size="sm" target="_blank" rel="noopener"><x-ui.icon name="share" class="size-4" /> WhatsApp</x-ui.button>
                         </div>
                     </li>
+                    {{-- "Hide from the VoteLab homepage" (plan/SITE.md decision 3): audited, same permission as editing. --}}
+                    <li class="flex min-h-11 items-center justify-between gap-4 border-t border-hairline pt-3">
+                        <span>
+                            <span id="homepage-listing-label" class="block text-sm font-medium text-ink">Hide from the VoteLab homepage</span>
+                            <span id="homepage-listing-hint" class="block text-sm text-ink-secondary">The program's own link keeps working; it's left out of the VoteLab homepage, results page and sitemap.</span>
+                        </span>
+                        <button type="button" role="switch" aria-checked="{{ $hiddenFromHomepage ? 'true' : 'false' }}"
+                            aria-labelledby="homepage-listing-label" aria-describedby="homepage-listing-hint"
+                            wire:click="toggleHomepageListing" wire:loading.attr="disabled" wire:target="toggleHomepageListing" @disabled(!$canEdit)
+                            @class([
+                                'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-[var(--duration-base)] disabled:opacity-55',
+                                'bg-primary' => $hiddenFromHomepage,
+                                'bg-strong' => !$hiddenFromHomepage,
+                            ])>
+                            <span @class([
+                                'inline-block size-5 rounded-full bg-white shadow-card transition-transform duration-[var(--duration-base)] ease-[var(--ease-out)]',
+                                'translate-x-6' => $hiddenFromHomepage,
+                                'translate-x-1' => !$hiddenFromHomepage,
+                            ])></span>
+                        </button>
+                    </li>
                 </ul>
             </section>
         </div>
