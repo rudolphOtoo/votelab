@@ -454,8 +454,8 @@ Stage 3 (hardening) completes this list; the items below are already required.
   S3 bucket): nominee photos are served from it.
 - [ ] **The boot guard passes.** In production the app refuses to start (web and CLI) unless: the cache store
   holds atomic locks shared by all servers (not `array` or `file`), `APP_DEBUG=false`, `PAYSTACK_SECRET_KEY`
-  is a live key, `VOTING_PHONE_HASH_KEY` and `VOTING_FINGERPRINT_KEY` are set, and `PAYMENTS_LOGGING_ENABLED` is not `true` (D-122). The
-  error lists every problem.
+  is a live key, `VOTING_PHONE_HASH_KEY` and `VOTING_FINGERPRINT_KEY` are set, `PAYMENTS_LOGGING_ENABLED` is not `true` (D-122),
+  and neither pcov nor xdebug is loaded (D-146). The error lists every problem.
 - [ ] **Sentry DSN set** (`SENTRY_LARAVEL_DSN`) and alert rules created for `queue.job_failed`,
   `fulfilment.gave_up`, `tally.drift` and `tally.drift_nightly`.
 - [ ] **An uptime monitor watches `/health`** (alert on 503 and on `"status":"degraded"`). Set
@@ -485,5 +485,8 @@ Stage 3 (hardening) completes this list; the items below are already required.
   and public times convert to Africa/Accra for display. Don't change it, and don't add an `APP_TIMEZONE` override.
 - [ ] **Index migrations after launch use `CREATE INDEX CONCURRENTLY`** outside a transaction (see
   [Database](#database-postgresql-17)).
+- [ ] **No pcov or xdebug on production servers** (`php -m` lists neither, for PHP-FPM and the CLI). pcov
+  measures test coverage for mutation testing, locally and in CI only (D-146); never `pecl install` it on a
+  server. The boot guard refuses to start if either is loaded.
 - [ ] **Both queue worker programs running** (`payments,mail,default` and `images`; see
   [Queue workers](#queue-workers-required)).

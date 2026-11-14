@@ -10,6 +10,8 @@ use App\Support\ProductionGuard;
 function safeProduction(): void
 {
     app()->detectEnvironment(static fn(): string => 'production');
+    // As on a production server: no pcov or xdebug, even when the machine running the tests has them (D-146).
+    ProductionGuard::$extensionLoaded = static fn(string $extension): bool => false;
     config([
         'cache.default' => 'database',
         'app.debug' => false,
@@ -18,6 +20,8 @@ function safeProduction(): void
         'voting.fingerprint_key' => 'a-real-fingerprint-key',
     ]);
 }
+
+afterEach(fn() => ProductionGuard::$extensionLoaded = null);
 
 it('accepts a safe production configuration', function (): void {
     safeProduction();
@@ -57,4 +61,25 @@ it('runs at boot in production', function (): void {
     config(['app.debug' => true]);
 
     expect(fn() => new App\Providers\AppServiceProvider(app())->boot())->toThrow(RuntimeException::class, 'APP_DEBUG');
+});
+
+it('refuses to start with a coverage or debugging extension loaded', function (string $extension): void {
+    safeProduction();
+    ProductionGuard::$extensionLoaded = static fn(string $name): bool => $name === $extension;
+
+    expect(ProductionGuard::problems())->toBe([
+        "The PHP extension \"{$extension}\" is loaded: it's for tests and debugging only. Remove it from this server's PHP.",
+    ]);
+})->with(ProductionGuard::FORBIDDEN_EXTENSIONS);
+
+it('checks the real PHP extensions when nothing replaces the check', function (): void {
+    safeProduction();
+    ProductionGuard::$extensionLoaded = null;
+
+    expect(
+        collect(ProductionGuard::problems())
+            ->filter(static fn(string $p): bool => str_contains($p, 'pcov'))
+            ->isNotEmpty(),
+    )
+        ->toBe(extension_loaded('pcov'));
 });

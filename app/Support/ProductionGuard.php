@@ -17,11 +17,23 @@ use RuntimeException;
  * - the Paystack secret is missing, or isn't a live key (PaystackKeyMode);
  * - VOTING_PHONE_HASH_KEY is missing (D-101);
  * - VOTING_FINGERPRINT_KEY is missing (D-126);
- * - PayZephyr's transaction log is on (it needs a table VoteLab doesn't create; D-122).
+ * - PayZephyr's transaction log is on (it needs a table VoteLab doesn't create; D-122);
+ * - a coverage or debugging extension is loaded (pcov, xdebug): test tooling only, D-146.
  */
 final class ProductionGuard
 {
     private const array UNSHARED_STORES = ['array', 'file', 'null'];
+
+    /** Test and debugging tools: they slow every request and expose internals. Never on a production server. */
+    public const array FORBIDDEN_EXTENSIONS = ['pcov', 'xdebug'];
+
+    /**
+     * Whether a PHP extension is loaded. Replaceable so tests run the same on machines that have pcov installed
+     * (developers and CI's mutation job) and machines that don't.
+     *
+     * @var (\Closure(string): bool)|null
+     */
+    public static ?\Closure $extensionLoaded = null;
 
     /**
      * @return list<string> Problems; empty when the configuration is safe for production.
@@ -58,6 +70,14 @@ final class ProductionGuard
 
         if ((bool) config('payments.logging.enabled')) {
             $problems[] = 'PAYMENTS_LOGGING_ENABLED must be false: VoteLab keeps its own ledger and has no payment_transactions table.';
+        }
+
+        $loaded = self::$extensionLoaded ?? extension_loaded(...);
+
+        foreach (self::FORBIDDEN_EXTENSIONS as $extension) {
+            if ($loaded($extension)) {
+                $problems[] = "The PHP extension \"{$extension}\" is loaded: it's for tests and debugging only. Remove it from this server's PHP.";
+            }
         }
 
         return $problems;
