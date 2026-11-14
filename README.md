@@ -487,7 +487,8 @@ Stage 3 (hardening) completes this list; the items below are already required.
 - [ ] **The boot guard passes.** In production the app refuses to start (web and CLI) unless: the cache store
   holds atomic locks shared by all servers (not `array` or `file`), `APP_DEBUG=false`, `PAYSTACK_SECRET_KEY`
   is a live key, `VOTING_PHONE_HASH_KEY` and `VOTING_FINGERPRINT_KEY` are set, `PAYMENTS_LOGGING_ENABLED` is not `true` (D-122),
-  and neither pcov nor xdebug is loaded (D-146). The error lists every problem.
+  neither pcov nor xdebug is loaded (D-146), and no public-site detail is still a dummy (D-149). The error lists every
+  problem.
 - [ ] **Sentry DSN set** (`SENTRY_LARAVEL_DSN`) and alert rules created for `queue.job_failed`,
   `fulfilment.gave_up`, `tally.drift` and `tally.drift_nightly`.
 - [ ] **An uptime monitor watches `/health`** (alert on 503 and on `"status":"degraded"`). Set
@@ -517,8 +518,9 @@ Stage 3 (hardening) completes this list; the items below are already required.
   and public times convert to Africa/Accra for display. Don't change it, and don't add an `APP_TIMEZONE` override.
 - [ ] **Index migrations after launch use `CREATE INDEX CONCURRENTLY`** outside a transaction (see
   [Database](#database-postgresql-17)).
-- [ ] **Public site details are real** (`config/site.php`): the defaults are dummy values (`support@votelab.example`,
-  numbers of zeros, `[VoteLab legal name]`). Set `SITE_SUPPORT_EMAIL` (request-access emails go there),
+- [ ] **Public site details are real** (`config/site.php`): the defaults are dummy values (`support@votelab.invalid`,
+  which can never receive mail, numbers of zeros, `[VoteLab legal name]`), and production refuses to start while any
+  is still a dummy (D-149). Set `SITE_SUPPORT_EMAIL` (request-access emails go there),
   `SITE_SUPPORT_WHATSAPP`, `SITE_SUPPORT_PHONE`, `SITE_FEE_WORDING`, `SITE_LEGAL_NAME` and `SITE_LEGAL_ADDRESS`, fill
   the `[bracketed]` placeholders on `/privacy`, and set `SITE_LEGAL_DRAFT=false` only once a lawyer has approved the
   terms, privacy and refund pages.

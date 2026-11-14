@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use App\Services\Security\PhoneHasher;
+use App\Support\Site\DummySiteData;
 use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
@@ -18,7 +19,9 @@ use RuntimeException;
  * - VOTING_PHONE_HASH_KEY is missing (D-101);
  * - VOTING_FINGERPRINT_KEY is missing (D-126);
  * - PayZephyr's transaction log is on (it needs a table VoteLab doesn't create; D-122);
- * - a coverage or debugging extension is loaded (pcov, xdebug): test tooling only, D-146.
+ * - a coverage or debugging extension is loaded (pcov, xdebug): test tooling only, D-146;
+ * - a public-site detail is still a dummy (support contacts, fee wording, legal name or address; D-149).
+ *   SITE_LEGAL_DRAFT may stay on until the legal review.
  */
 final class ProductionGuard
 {
@@ -70,6 +73,10 @@ final class ProductionGuard
 
         if ((bool) config('payments.logging.enabled')) {
             $problems[] = 'PAYMENTS_LOGGING_ENABLED must be false: VoteLab keeps its own ledger and has no payment_transactions table.';
+        }
+
+        foreach (DummySiteData::stillDummy() as $variable) {
+            $problems[] = "{$variable} is still a dummy value: set the real one (README production checklist).";
         }
 
         $loaded = self::$extensionLoaded ?? extension_loaded(...);

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Support\ProductionGuard;
+use App\Support\Site\DummySiteData;
 
 /**
  * A configuration that is safe for production.
@@ -18,6 +19,13 @@ function safeProduction(): void
         'payments.providers.paystack.secret_key' => 'sk_live_real',
         'voting.phone_hash_key' => 'a-real-key',
         'voting.fingerprint_key' => 'a-real-fingerprint-key',
+        // Real public-site details (D-149); the shipped ones are dummies.
+        'site.fee' => 'Ten percent of each paid vote.',
+        'site.support.email' => 'help@votelab.com.gh',
+        'site.support.whatsapp' => '+233 24 555 0101',
+        'site.support.phone' => '+233 30 255 0101',
+        'site.legal.name' => 'VoteLab Technologies Ltd',
+        'site.legal.address' => '12 Liberation Road, Accra',
     ]);
 }
 
@@ -82,4 +90,42 @@ it('checks the real PHP extensions when nothing replaces the check', function ()
             ->isNotEmpty(),
     )
         ->toBe(extension_loaded('pcov'));
+});
+
+it('refuses to start while a public-site detail is still a dummy (D-149)', function (
+    string $key,
+    string $variable,
+    string $value,
+): void {
+    safeProduction();
+    config([$key => $value]);
+
+    expect(ProductionGuard::problems())
+        ->toBe(["{$variable} is still a dummy value: set the real one (README production checklist)."])
+        ->and(ProductionGuard::enforce(...))
+        ->toThrow(RuntimeException::class, $variable);
+})->with(function (): Generator {
+    $shipped = [
+        'site.fee' => DummySiteData::FEE,
+        'site.support.email' => DummySiteData::SUPPORT_EMAIL,
+        'site.support.whatsapp' => DummySiteData::SUPPORT_WHATSAPP,
+        'site.support.phone' => DummySiteData::SUPPORT_PHONE,
+        'site.legal.name' => DummySiteData::LEGAL_NAME,
+        'site.legal.address' => DummySiteData::LEGAL_ADDRESS,
+    ];
+
+    foreach (DummySiteData::SETTINGS as $key => $variable) {
+        yield "{$variable}: shipped default" => [$key, $variable, $shipped[$key]];
+        yield "{$variable}: bracketed placeholder" => [$key, $variable, '[to be confirmed]'];
+        yield "{$variable}: example" => [$key, $variable, 'help@example.com'];
+        yield "{$variable}: .invalid" => [$key, $variable, 'help@votelab.invalid'];
+        yield "{$variable}: empty" => [$key, $variable, ''];
+    }
+});
+
+it('lets the legal draft notice stay on in production until the legal review', function (): void {
+    safeProduction();
+    config(['site.legal.draft' => true]);
+
+    expect(ProductionGuard::problems())->toBeEmpty();
 });
