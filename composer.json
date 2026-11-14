@@ -17,8 +17,7 @@
         "livewire/livewire": "^4.4",
         "predis/predis": "^3.7",
         "sentry/sentry-laravel": "4.29.0",
-        "spatie/simple-excel": "^3.11",
-        "wireui/heroicons": "^2.10"
+        "spatie/simple-excel": "^3.11"
     },
     "require-dev": {
         "carthage-software/mago": "^1.58",
@@ -31,6 +30,9 @@
         "pestphp/pest": "^5.3",
         "pestphp/pest-plugin-browser": "5.2.0",
         "pestphp/pest-plugin-laravel": "^5.0"
+    },
+    "conflict": {
+        "brianium/paratest": "7.28.0"
     },
     "autoload": {
         "psr-4": {
