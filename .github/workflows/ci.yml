@@ -158,6 +158,44 @@ jobs:
           php artisan migrate:reset --force
           php artisan migrate --force
 
+  # Mutation testing of the money and ledger classes, with pcov for coverage (D-145). Fails when the score drops
+  # below the baseline (72.49% on 2026-11-14); raise --min as surviving mutants get tests.
+  mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, intl, bcmath, gd
+          coverage: pcov
+          ini-values: memory_limit=4G
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci && npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Mutation testing (money and ledger classes)
+        run: >-
+          ./vendor/bin/pest --mutate --parallel --min=72
+          --class='App\Actions\Voting\DecidePaymentSettlement,App\Actions\Admin\RecountCategoryTallies,App\Actions\Voting\CastFreeVoteAction,App\Actions\Voting\FulfillPaidVoteOrderAction,App\Services\Payment\PaystackFeeCalculator'
+
   # Real-browser tests (pestphp/pest-plugin-browser + Playwright Chromium) against the production build (D-113).
   # Required: the small critical set (vote flow at 360 px, hidden-results checks, sign-in, axe on public pages).
   browser-critical:
