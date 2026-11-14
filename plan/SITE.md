@@ -1,7 +1,7 @@
 # Platform homepage and public site pages: approved plan
 
-Status: **approved 2026-11-13; Step A (directions) done; Step B (direction A, "Stage night") built 2026-11-14, D-148.** Build only after cleanup batches 4–7 are finished and committed
-(owner). The full brief is the owner's "Platform homepage and public site pages" prompt; this file records the
+Status: **built.** Step A (directions) and Step B (direction A, "Stage night", D-148) done 2026-11-14; Step C (polish
+and proof, D-150) done 2026-11-14; dummy-data safeguards D-149. The full brief is the owner's "Platform homepage and public site pages" prompt; this file records the
 approved plan and decisions so they survive until then.
 
 ## How `/` behaves today
