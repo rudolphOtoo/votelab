@@ -158,8 +158,11 @@ jobs:
           php artisan migrate:reset --force
           php artisan migrate --force
 
-  # Mutation testing of the money and ledger classes, with pcov for coverage (D-145). Fails when the score drops
-  # below the baseline (72.49% on 2026-11-14); raise --min as surviving mutants get tests.
+  # Mutation testing of the money and ledger classes, with pcov for coverage (D-145, D-146). Fails when the score
+  # drops below 94%: 255 of 269 mutants caught (94.80%). The 14 left are equivalent (casts of values already
+  # integers, columns of a query run only for its lock) or lines pcov doesn't record (match (true), constants).
+  # A busy machine can report some of them as timeouts, which count as caught (97% locally); the threshold
+  # doesn't rely on that.
   mutation:
     runs-on: ubuntu-latest
     steps:
@@ -193,7 +196,7 @@ jobs:
 
       - name: Mutation testing (money and ledger classes)
         run: >-
-          ./vendor/bin/pest --mutate --parallel --min=72
+          ./vendor/bin/pest --mutate --parallel --min=94
           --class='App\Actions\Voting\DecidePaymentSettlement,App\Actions\Admin\RecountCategoryTallies,App\Actions\Voting\CastFreeVoteAction,App\Actions\Voting\FulfillPaidVoteOrderAction,App\Services\Payment\PaystackFeeCalculator'
 
   # Real-browser tests (pestphp/pest-plugin-browser + Playwright Chromium) against the production build (D-113).

@@ -90,3 +90,24 @@ it('allows a total of exactly MAX_AMOUNT and refuses one pesewa more (D-139)', f
         ->and(fn() => new PaystackFeeCalculator(feeBps: 195)->quote(quantity: 1, unitPrice: $max))
         ->toThrow(OrderTotalTooLargeException::class);
 });
+
+it('rounds up exactly at rates where the remainder can be one pesewa (mutation D-145)', function (
+    int $bps,
+    int $subtotal,
+): void {
+    // At 1.95% the remainder can never be 1 (10,000 and 9,805 share a factor of 5), so the property test above
+    // can't tell ceil() from "one pesewa less". These rates and subtotals leave exactly that remainder.
+    $divisor = 10_000 - $bps;
+    $total = new PaystackFeeCalculator(feeBps: $bps)->quote(quantity: 1, unitPrice: $subtotal)->total;
+
+    expect(($subtotal * 10_000) % $divisor)
+        ->toBe(1)
+        ->and($total)
+        ->toBe(intdiv($subtotal * 10_000, $divisor) + 1)
+        ->and($total * $divisor)
+        ->toBeGreaterThanOrEqual($subtotal * 10_000); // the organizer is never short
+})->with([
+    '1.97%' => [197, 5_424],
+    '1.99%' => [199, 9_604],
+    '2.93%' => [293, 7_918],
+]);

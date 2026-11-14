@@ -426,3 +426,37 @@ it('ships a 30-minute close grace default (D-85)', function (): void {
         ->and((string) file_get_contents(base_path('.env.example')))
         ->toContain('VOTING_CLOSE_GRACE_MINUTES=30');
 });
+
+it('stamps the ledger row with the app clock at the moment of crediting (mutation D-145)', function (): void {
+    Carbon::setTestNow('2026-10-30 20:15:42');
+    $transaction = pendingOrder(quantity: 3);
+
+    fulfil($transaction);
+
+    // Set by the app, never left to the column's database default (another clock and, on PostgreSQL, the session
+    // time zone): "votes today" and the export read it.
+    expect(VoteRecord::query()->sole()->cast_at?->toDateTimeString())->toBe('2026-10-30 20:15:42');
+});
+
+it('clears the expiry reason when an expired order is credited late (mutation D-145)', function (): void {
+    $transaction = pendingOrder(quantity: 4);
+    $transaction->forceFill(['status' => TransactionStatus::Expired, 'status_reason' => 'unpaid_timeout'])->save();
+
+    expect(fulfil($transaction)->newlyCredited)->toBeTrue();
+    expect($transaction->fresh()?->only(['status', 'status_reason']))->toBe([
+        'status' => TransactionStatus::Successful,
+        'status_reason' => null,
+    ]);
+});
+
+it('never credits a closed category that has no recorded close time', function (): void {
+    $transaction = pendingOrder(quantity: 2);
+    $transaction->awardCategory->forceFill(['status' => CategoryStatus::Closed, 'closed_at' => null])->save();
+
+    fulfil($transaction);
+
+    expect($transaction->fresh()?->status)
+        ->toBe(TransactionStatus::PaidUncredited)
+        ->and($transaction->nominee->fresh()?->votes_count)
+        ->toBe(0);
+});

@@ -191,3 +191,21 @@ it('refuses after a second slot conflict instead of retrying for ever', function
     expect(fn() => castFree($nominee, voter()))->toThrow(FreeVoteUnavailableException::class);
     expect(VoteRecord::query()->count())->toBe(0)->and($nominee->fresh()?->votes_count)->toBe(0);
 });
+
+it('stamps a free vote with the app clock and its keyed network hash (mutation D-145)', function (): void {
+    $record = castFree(freeNominee(), voter());
+
+    expect($record->fresh()?->cast_at?->toDateTimeString())
+        ->toBe('2026-11-05 10:00:00')
+        ->and($record->fresh()?->ip_hash)
+        ->toBe(voter()->ipHash);
+});
+
+it('never reports a negative allowance when the organizer lowers it below what a voter used (mutation D-145)', function (): void {
+    $nominee = freeNominee(limit: 3);
+    castFree($nominee, voter());
+    castFree($nominee, voter());
+    $nominee->awardCategory->forceFill(['free_vote_limit' => 1])->save();
+
+    expect(CastFreeVoteAction::remainingToday($nominee->awardCategory->fresh(), voter()))->toBe(0);
+});
