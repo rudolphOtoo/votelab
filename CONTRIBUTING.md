@@ -50,12 +50,15 @@ docs(plan): add shared foundation and dev workstreams
 1. **Create a branch** from `dev` following the naming convention above
 2. **Make your changes** with clear, atomic commits
 3. **Write/update tests** for any new functionality
-4. **Run quality checks** locally:
+4. **Verify each commit before pushing** with `scripts/ci-local.sh`. It runs CI's own steps from
+   `.github/workflows/ci.yml`, in order, on a fresh checkout of the commit, never on your working copy:
    ```bash
-   composer lint:check
-   composer types:check
-   php artisan test
+   scripts/ci-local.sh                     # the commit you're on (HEAD)
+   scripts/ci-local.sh --at <commit>       # any other commit, e.g. each commit of a branch in turn
+   scripts/ci-local.sh --mutation --browser   # also the mutation and browser jobs
    ```
+   It needs PHP, Composer, Node and a PostgreSQL to point at (see the README, "Before pushing"). While you work,
+   the quick checks are `composer lint:check`, `composer types:check` and `composer test`.
 5. **Update documentation** if necessary (README, code comments)
 6. **Submit a PR** with:
    - Clear title following Conventional Commits
@@ -68,7 +71,7 @@ docs(plan): add shared foundation and dev workstreams
 ## Code Standards
 
 - **PHP**: Follow PSR-12 standards with `declare(strict_types=1);`, enforced by Mago (`composer lint`)
-- **Type Safety**: Use type hints, return types, and proper PHPDoc where appropriate (PHPStan Level 7)
+- **Type Safety**: Use type hints, return types, and proper PHPDoc where appropriate (Larastan level 8)
 - **Testing**: Write tests using Pest PHP for new features and bug fixes
 - **Security**: Never commit secrets, API keys, or credentials. Use environment variables
 - **Database**: Use migrations for schema changes, seeders for test data

@@ -50,6 +50,38 @@ composer audit        # known advisories in PHP dependencies (CI fails on any)
 npm audit             # known advisories in JS dependencies (CI fails on any)
 ```
 
+### Before pushing: run CI locally
+
+`scripts/ci-local.sh` checks a commit the way CI will. It reads `.github/workflows/ci.yml` from that commit and runs
+the `run:` steps of each job in order, every job in its own fresh git worktree: `.env` comes from `.env.example`,
+dependencies from the lock files, assets from a fresh build. Nothing comes from your working copy, so it can't pass
+locally and fail in CI because of your `.env`, `vendor/` or build (D-147). Uncommitted changes aren't included:
+commit first.
+
+```bash
+scripts/ci-local.sh                         # HEAD: dependency audit, quality, postgres
+scripts/ci-local.sh --at <commit>           # another commit
+scripts/ci-local.sh --mutation              # plus the mutation job (needs pcov; about 2 minutes)
+scripts/ci-local.sh --browser               # plus both browser jobs (installs Playwright's Chromium; about 3 minutes)
+scripts/ci-local.sh --no-postgres --keep    # skip PostgreSQL (CI won't); keep worktrees and logs
+```
+
+It needs git, PHP 8.4 or 8.5, Composer, Node and npm, plus, for the postgres job, a PostgreSQL 16+ server with a
+database you created once (`createdb votelab_ci`) and a role allowed to create databases (parallel tests use one
+each). Point it there with environment variables:
+
+| Variable | Default |
+| :--- | :--- |
+| `CI_LOCAL_DB_HOST` | `127.0.0.1` |
+| `CI_LOCAL_DB_PORT` | `5432` |
+| `CI_LOCAL_DB_DATABASE` | `votelab_ci` |
+| `CI_LOCAL_DB_USERNAME` | your user name |
+| `CI_LOCAL_DB_PASSWORD` | empty |
+
+What differs from CI is only where it runs: your PHP, Node and Composer instead of the setup actions, and your
+PostgreSQL instead of CI's service (its "Server version" step is skipped). `tests/Unit/CiLocalStepsTest.php` makes CI
+fail if the workflow changes in a way the script can't read.
+
 ## Money and vote integrity
 
 - All money is stored as **integer pesewas**. Floats are never used for amounts.
