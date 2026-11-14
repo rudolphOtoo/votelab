@@ -98,3 +98,21 @@ it('keeps the stage, sign-in and invitation pages out of search results', functi
 it('no longer ships Laravel\'s welcome page', function (): void {
     expect(view()->exists('welcome'))->toBeFalse();
 });
+
+it('gives the homepage a link-preview image of the right size', function (): void {
+    Illuminate\Support\Facades\Storage::fake((string) config('organizations.nominee_photos.disk'));
+    $html = $this->get('/')->assertOk()->getContent();
+    preg_match('/<meta property="og:image" content="([^"]+)">/', (string) $html, $match);
+
+    expect($match[1] ?? null)
+        ->toEndWith('.jpg')
+        ->and($html)
+        ->toContain('<meta property="og:image:width" content="1200">');
+
+    $path = 'share/site/' . basename((string) parse_url($match[1], PHP_URL_PATH));
+    $size = getimagesizefromstring((string) App\Support\ShareImages::disk()->get($path));
+    expect($size)
+        ->toBeArray()
+        ->and([$size[0] ?? 0, $size[1] ?? 0, $size[2] ?? 0])
+        ->toBe([1200, 630, IMAGETYPE_JPEG]);
+});

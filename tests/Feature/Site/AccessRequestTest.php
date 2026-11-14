@@ -90,6 +90,25 @@ it('explains what is missing or wrong', function (array $fields, string $error):
     'message too long' => [['message' => str_repeat('a', 2001)], 'message'],
 ]);
 
+it('words every error as an instruction, in the form\'s own terms', function (): void {
+    $this
+        ->from('/organizers/request-access')
+        ->post('/organizers/request-access', accessForm([
+            'name' => '',
+            'organization' => '',
+            'email' => '',
+            'phone' => '',
+            'event_type' => '',
+        ]))
+        ->assertSessionHasErrors([
+            'name' => 'Enter your name.',
+            'organization' => 'Enter the organization or event name.',
+            'email' => 'Enter your email address.',
+            'phone' => 'Enter a phone or WhatsApp number.',
+            'event_type' => 'Choose the type of event.',
+        ]);
+});
+
 it('quietly drops bots: the honeypot, a form sent too fast, or a forged start time', function (
     array $fields,
     int $secondsAgo,

@@ -90,3 +90,83 @@ it('finds a nominee by code from the homepage, without JavaScript help', functio
             "/{$nominee->awardProgram->organization->slug}/{$nominee->awardProgram->slug}/{$nominee->nominee_code}",
         );
 })->group('critical');
+
+it('shows every empty and alternative state cleanly at every width', function (
+    string $name,
+    Closure $setUp,
+    string $path,
+    string $expect,
+): void {
+    $setUp();
+
+    foreach ([[360, 800], [768, 1024], [1440, 900]] as [$width, $height]) {
+        visit($path, ['reducedMotion' => 'reduce'])
+            ->resize($width, $height)
+            ->assertSee($expect)
+            ->assertNoJavaScriptErrors()
+            ->assertNoAccessibilityIssues(1)
+            ->screenshot(fullPage: true, filename: "site-state-{$name}-{$width}");
+    }
+})->with([
+    'homepage with nothing live and no winners' => [
+        'home-empty',
+        static function (): void {
+            App\Models\AwardProgram::query()->update(['status' => ProgramStatus::Draft]);
+        },
+        '/',
+        'No awards are open for voting right now.',
+    ],
+    'results with nothing revealed' => [
+        'results-empty',
+        static function (): void {
+            AwardCategory::query()
+                ->where('status', CategoryStatus::Revealed)
+                ->update(['status' => CategoryStatus::Closed]);
+        },
+        '/results',
+        'No results have been announced yet.',
+    ],
+    'search with matches' => ['search-matches', static function (): void {}, '/?q=en', 'Nominees matching'],
+    'search with no match' => ['search-none', static function (): void {}, '/?q=zzzz', 'No nominee matches'],
+    'dedicated mode with no live program' => [
+        'no-live-program',
+        static function (): void {
+            $program = AwardProgram::query()->firstOrFail();
+            $program->update(['status' => ProgramStatus::Draft]);
+            App\Models\PlatformSetting::set(
+                App\Support\DedicatedSite::MODE_SETTING,
+                App\Support\DedicatedSite::MODE_DEDICATED,
+            );
+            App\Models\PlatformSetting::set(App\Support\DedicatedSite::ORG_SETTING, $program->organization->slug);
+        },
+        '/',
+        'No live program right now',
+    ],
+])->group('advisory');
+
+it('shows request-access errors next to their fields, then the confirmation', function (): void {
+    $page = visit('/organizers/request-access', ['reducedMotion' => 'reduce'])->resize(360, 800);
+
+    // Sent at once with nothing filled in: the server explains every missing field (the timer only stops bots
+    // silently, and a person this fast is unrealistic, so wait past it first).
+    usleep(3_200_000);
+    $page
+        ->press('Send request')
+        ->assertSee('Please check the form.')
+        ->assertSee('Enter your name.')
+        ->assertSee('Choose the type of event.')
+        ->assertNoAccessibilityIssues(1)
+        ->screenshot(fullPage: true, filename: 'site-state-request-errors-360');
+
+    usleep(3_200_000);
+    $page
+        ->type('#name', 'Efua Asante')
+        ->type('#organization', 'Takoradi Music Awards')
+        ->type('#email', 'efua@example.com')
+        ->type('#phone', '+233 24 123 4567')
+        ->select('#event_type', 'music')
+        ->press('Send request')
+        ->assertSee('got your request')
+        ->assertNoAccessibilityIssues(1)
+        ->screenshot(fullPage: true, filename: 'site-state-request-sent-360');
+})->group('advisory');

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Site;
 use App\Actions\Site\FindNomineeAcrossPrograms;
 use App\Support\DedicatedSite;
 use App\Support\Site\SiteDirectory;
+use App\Support\Site\SiteShareImage;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,6 +47,7 @@ final class HomeController
             'matches' => $search['matches'] ?? null,
             'live' => SiteDirectory::live(),
             'winners' => SiteDirectory::winners(),
+            'shareImage' => SiteShareImage::url(),
         ]);
     }
 }

@@ -2,7 +2,17 @@
 <x-site.layout :scope="$scope"
     description="Vote for your favourites in Ghana's awards with mobile money or card. Every vote is a confirmed payment, counted once."
     :canonical="route('home')"
-    :meta="['og:title' => 'VoteLab: vote for your favourites', 'og:description' => 'Vote for your favourites in Ghana\'s awards with mobile money or card.', 'og:type' => 'website', 'og:url' => route('home')]">
+:meta="[
+        'og:title' => 'VoteLab: vote for your favourites',
+        'og:description' => 'Vote for your favourites in Ghana\'s awards with mobile money or card.',
+        'og:type' => 'website',
+        'og:url' => route('home'),
+        'og:image' => $shareImage,
+        'og:image:width' => (string) \App\Support\Site\SiteShareImage::WIDTH,
+        'og:image:height' => (string) \App\Support\Site\SiteShareImage::HEIGHT,
+        'og:image:alt' => 'VoteLab: Vote for your favourites. Watch them win.',
+        'twitter:card' => 'summary_large_image',
+    ]">
 
     {{-- 1. Hero --}}
     <section data-hero aria-labelledby="hero-heading" class="relative isolate overflow-hidden bg-hero text-hero-ink [--focus-ring:var(--hero-focus)]">

@@ -68,8 +68,17 @@ final class AccessRequestController
             'expected_date' => ['nullable', 'date', 'after_or_equal:today'],
             'message' => ['nullable', 'string', 'max:2000'],
         ], [
+            'name.required' => 'Enter your name.',
+            'organization.required' => 'Enter the organization or event name.',
+            'email.required' => 'Enter your email address.',
+            'email.email' => 'Enter a valid email address, e.g. name@example.com.',
+            'phone.required' => 'Enter a phone or WhatsApp number.',
             'phone.regex' => 'Enter a phone number with digits only, e.g. +233 24 123 4567.',
+            'event_type.required' => 'Choose the type of event.',
+            'event_type.in' => 'Choose one of the event types listed.',
+            'expected_date.date' => 'Enter a valid date.',
             'expected_date.after_or_equal' => 'Choose today or a later date.',
+            '*.max' => 'This is too long: shorten it to :max characters.',
         ]);
 
         $accessRequest = AccessRequest::query()->create([...$data, 'email' => mb_strtolower(trim($data['email']))]);
