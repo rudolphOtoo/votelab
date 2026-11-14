@@ -17,21 +17,23 @@
     @fonts
     <x-ui.brand-style :organization="$brandOrganization ?? null" />
 
-    {{-- JS bundle per audience (D-124): public (default), auth, admin, stage, or result (the payment result page:
-         plain JavaScript, no Livewire or Alpine, so Livewire's assets and the Alpine toast are left out). --}}
-    @php($bundle = in_array($bundle ?? 'public', ['public', 'auth', 'admin', 'stage', 'result'], true) ? ($bundle ?? 'public') : 'public')
+    {{-- JS bundle per audience (D-124): public (default), auth, admin, stage, or the plain-JavaScript bundles with no
+         Livewire or Alpine, where Livewire's assets and the Alpine toast are left out: result (the payment result
+         page, D-144) and home (the platform homepage and site pages). --}}
+    @php($bundle = in_array($bundle ?? 'public', ['public', 'auth', 'admin', 'stage', 'result', 'home'], true) ? ($bundle ?? 'public') : 'public')
+    @php($plain = in_array($bundle, ['result', 'home'], true))
     @vite(['resources/css/app.css', 'resources/js/entries/'.$bundle.'.js'])
-    @if ($bundle !== 'result')
+    @unless ($plain)
         @livewireStyles
-    @endif
+    @endunless
 </head>
 <body class="min-h-screen bg-canvas text-ink font-sans antialiased">
     {{ $slot }}
 
-    @if ($bundle !== 'result')
+    @unless ($plain)
         <x-ui.toast />
 
         @livewireScriptConfig
-    @endif
+    @endunless
 </body>
 </html>

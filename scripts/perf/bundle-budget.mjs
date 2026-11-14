@@ -14,6 +14,8 @@ const BUDGETS = [
     { entry: 'resources/css/app.css', limit: 30 * KB },
     // The payment result page: plain JavaScript, no Livewire (cleanup batch 6).
     { entry: 'resources/js/entries/result.js', limit: 5 * KB },
+    // The platform homepage and site pages: plain JavaScript, no Livewire or Alpine (homepage brief: ≤ 10 KB).
+    { entry: 'resources/js/entries/home.js', limit: 10 * KB },
     // Not voter-facing; generous ceilings so a regression is still caught.
     { entry: 'resources/js/entries/auth.js', limit: 110 * KB },
     { entry: 'resources/js/entries/admin.js', limit: 120 * KB },

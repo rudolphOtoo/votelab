@@ -60,3 +60,14 @@
 @media (prefers-reduced-motion: reduce) {
     .stage-bar { transition: none !important; }
 }
+
+/* Platform homepage and site pages (resources/js/home.js): sections fade up as they enter. Only once the script has
+   run (.js-reveal), so content is never hidden without JavaScript; the reduced-motion rule above keeps it static. */
+.js-reveal [data-reveal]:not([data-revealed]) {
+    opacity: 0;
+    transform: translateY(12px);
+}
+
+.js-reveal [data-reveal] {
+    transition: opacity var(--duration-slow) var(--ease-out), transform var(--duration-slow) var(--ease-out);
+}
